@@ -7,6 +7,14 @@ import SectorChips from "@/components/SectorChips";
 import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message } from "@/components/ChatMessages";
 
+const TOOL_LABELS: Record<string, string> = {
+  list_themes: "Exploration des thèmes disponibles",
+  search_datasets: "Recherche de datasets",
+  get_dataset_info: "Récupération des informations du dataset",
+  list_dataset_dimensions: "Chargement des dimensions",
+  query_dataset_data: "Interrogation des données",
+};
+
 interface Conversation {
   id: string;
   title: string;
@@ -17,6 +25,7 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +71,7 @@ export default function Home() {
     );
 
     setIsLoading(true);
+    setToolStatus(null);
 
     try {
       const currentConv = conversations.find((c) => c.id === convId);
@@ -72,17 +82,59 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({
+          messages: history.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+
+          try {
+            const event = JSON.parse(data);
+            if (event.type === "tool_use") {
+              setToolStatus(TOOL_LABELS[event.tool] || `Outil: ${event.tool}`);
+            } else if (event.type === "text") {
+              fullText += event.content;
+            } else if (event.type === "error") {
+              fullText = event.content;
+            }
+          } catch {
+            // Skip malformed events
+          }
+        }
+      }
 
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content:
-          data.response ||
-          "Desole, une erreur est survenue. Veuillez reessayer.",
+          fullText ||
+          "Désolé, je n'ai pas pu obtenir de réponse. Veuillez réessayer.",
       };
 
       setConversations((prev) =>
@@ -97,7 +149,7 @@ export default function Home() {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content:
-          "Erreur de connexion au serveur MCP. Verifiez que le serveur est en ligne.",
+          "Erreur de connexion au serveur. Vérifiez que le serveur est en ligne et que la clé API est configurée.",
       };
       setConversations((prev) =>
         prev.map((c) =>
@@ -108,6 +160,7 @@ export default function Home() {
       );
     } finally {
       setIsLoading(false);
+      setToolStatus(null);
     }
   };
 
@@ -147,7 +200,7 @@ export default function Home() {
           </button>
           <div className="flex items-center gap-2">
             <SenegalFlag size={20} />
-            <span className="text-sm font-medium">Portail MCP Senegal</span>
+            <span className="text-sm font-medium">Portail MCP Sénégal</span>
           </div>
           <div className="w-8" />
         </header>
@@ -166,7 +219,7 @@ export default function Home() {
                 Bienvenue sur le portail mcp-gouv-sn
               </h1>
               <p className="text-sm" style={{ color: "var(--muted)" }}>
-                Explorez les donnees ouvertes du Senegal - ANSD
+                Explorez les données ouvertes du Sénégal - ANSD
               </p>
             </div>
 
@@ -178,7 +231,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <ChatMessages messages={messages} isLoading={isLoading} />
+            <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} />
             <div ref={messagesEndRef} />
             <div className="px-4 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
@@ -187,7 +240,7 @@ export default function Home() {
                   className="text-xs text-center mt-2"
                   style={{ color: "var(--muted)" }}
                 >
-                  Donnees fournies par l&apos;ANSD via le protocole MCP
+                  Données fournies par l&apos;ANSD via le protocole MCP - Propulsé par Claude
                 </p>
               </div>
             </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import SenegalFlag from "./SenegalFlag";
 
 export interface Message {
@@ -11,9 +13,10 @@ export interface Message {
 interface ChatMessagesProps {
   messages: Message[];
   isLoading?: boolean;
+  toolStatus?: string | null;
 }
 
-export default function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+export default function ChatMessages({ messages, isLoading, toolStatus }: ChatMessagesProps) {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -32,12 +35,21 @@ export default function ChatMessages({ messages, isLoading }: ChatMessagesProps)
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div
-                className="message-content text-sm leading-relaxed whitespace-pre-wrap"
-                style={{ color: "var(--foreground)" }}
-              >
-                {msg.content}
-              </div>
+              {msg.role === "assistant" ? (
+                <div className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
+                  style={{ color: "var(--foreground)" }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div
+                  className="message-content text-sm leading-relaxed whitespace-pre-wrap"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {msg.content}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -48,7 +60,7 @@ export default function ChatMessages({ messages, isLoading }: ChatMessagesProps)
             </div>
             <div className="flex-1">
               <div className="typing-cursor text-sm" style={{ color: "var(--muted)" }}>
-                Recherche en cours
+                {toolStatus || "Recherche en cours"}
               </div>
             </div>
           </div>

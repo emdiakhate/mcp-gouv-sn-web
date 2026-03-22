@@ -1,7 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 
 const MCP_SERVER_URL =
-  process.env.MCP_SERVER_URL || "https://mcp-gouv-sn.up.railway.app";
+  process.env.MCP_SERVER_URL || "https://mcp-gouv-sn-production.up.railway.app";
+
+const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans les données publiques du Sénégal. Tu aides les utilisateurs à explorer et comprendre les données de l'ANSD (Agence Nationale de la Statistique et de la Démographie).
+
+Tu as accès à des outils MCP qui te permettent d'interroger les datasets de l'ANSD. Utilise-les pour répondre aux questions des utilisateurs.
+
+Règles :
+- Réponds toujours en français
+- Utilise les outils disponibles pour trouver les données pertinentes avant de répondre
+- Commence par lister les thèmes ou chercher les datasets pertinents si tu n'es pas sûr
+- Présente les données de manière claire avec des tableaux markdown quand c'est approprié
+- Si l'utilisateur pose une question générale, utilise list_themes pour montrer ce qui est disponible
+- Si l'utilisateur cherche des données spécifiques, utilise search_datasets puis get_dataset_info et query_dataset_data
+- Ne fabrique jamais de données. Si tu ne trouves pas l'information, dis-le clairement
+- Quand tu affiches des données tabulaires, utilise des tableaux markdown`;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -11,6 +26,55 @@ interface ChatMessage {
 interface MCPContent {
   type: string;
   text: string;
+}
+
+interface MCPToolInputSchema {
+  type: string;
+  properties?: Record<string, unknown>;
+  required?: string[];
+}
+
+interface MCPTool {
+  name: string;
+  description?: string;
+  inputSchema?: MCPToolInputSchema;
+}
+
+let cachedTools: Anthropic.Tool[] | null = null;
+let toolsCacheTime = 0;
+const TOOLS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getMCPTools(): Promise<Anthropic.Tool[]> {
+  if (cachedTools && Date.now() - toolsCacheTime < TOOLS_CACHE_TTL) {
+    return cachedTools;
+  }
+
+  const res = await fetch(`${MCP_SERVER_URL}/mcp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method: "tools/list",
+      params: {},
+    }),
+  });
+
+  const data = await res.json();
+  const mcpTools: MCPTool[] = data.result?.tools || [];
+
+  cachedTools = mcpTools.map((tool) => ({
+    name: tool.name,
+    description: tool.description || "",
+    input_schema: {
+      type: "object" as const,
+      properties: tool.inputSchema?.properties || {},
+      required: tool.inputSchema?.required || [],
+    },
+  }));
+
+  toolsCacheTime = Date.now();
+  return cachedTools;
 }
 
 async function callMCPTool(
@@ -37,109 +101,139 @@ async function callMCPTool(
   return JSON.stringify(data.result || data.error || data);
 }
 
-function detectIntent(message: string): {
-  tool: string;
-  args: Record<string, unknown>;
-} {
-  const lower = message.toLowerCase();
-
-  if (
-    lower.includes("theme") ||
-    lower.includes("thème") ||
-    lower.includes("quelles donnees") ||
-    lower.includes("quelles données") ||
-    lower.includes("disponible") ||
-    lower.includes("liste") ||
-    lower.includes("secteur")
-  ) {
-    return { tool: "list_themes", args: {} };
-  }
-
-  if (lower.includes("cherch") || lower.includes("recherch")) {
-    const keyword = message.replace(/.*(?:cherch|recherch)\w*\s*/i, "").trim();
-    return { tool: "search_datasets", args: { keyword: keyword || message } };
-  }
-
-  const topicKeywords: Record<string, string[]> = {
-    "sante": ["sante", "santé", "hopital", "hôpital", "medic", "médic", "vaccin", "mortalite", "mortalité", "nutrition", "maternelle", "contraception"],
-    "economie": ["economi", "économi", "pib", "commerce", "financ", "emploi", "chomage", "chômage"],
-    "agriculture": ["agricul", "elevage", "élevage", "peche", "pêche", "recolte", "récolte"],
-    "education": ["educa", "éduca", "scolar", "alphabet", "ecole", "école", "universite", "université"],
-    "demographie": ["demograph", "démograph", "population", "menage", "ménage", "migration", "recensement"],
-  };
-
-  for (const [topic, keywords] of Object.entries(topicKeywords)) {
-    if (keywords.some((k) => lower.includes(k))) {
-      return { tool: "search_datasets", args: { keyword: topic } };
-    }
-  }
-
-  return { tool: "search_datasets", args: { keyword: message.substring(0, 100) } };
-}
-
-function formatResponse(tool: string, rawResult: string): string {
-  try {
-    const data = JSON.parse(rawResult);
-
-    if (tool === "list_themes" && Array.isArray(data)) {
-      let response = "Donnees disponibles sur le portail ANSD :\n\n";
-      for (const theme of data) {
-        response += `### ${theme.theme}\n`;
-        if (theme.subcategories) {
-          for (const sub of theme.subcategories) {
-            response += `\n**${sub.name}**\n`;
-            if (sub.datasets) {
-              for (const ds of sub.datasets) {
-                response += `- ${ds.name}: ${ds.description || ""}\n`;
-              }
-            }
-          }
-        }
-        response += "\n";
-      }
-      return response;
-    }
-
-    if (tool === "search_datasets" && Array.isArray(data)) {
-      if (data.length === 0) {
-        return "Aucun dataset trouve pour cette recherche. Essayez avec d'autres mots-cles, ou tapez 'themes' pour voir toutes les donnees disponibles.";
-      }
-      let response = `${data.length} dataset(s) trouve(s) :\n\n`;
-      for (const ds of data) {
-        response += `- **${ds.name}** (${ds.id || ""})\n  ${ds.description || ""}\n`;
-      }
-      return response;
-    }
-
-    return rawResult;
-  } catch {
-    return rawResult;
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { messages } = (await request.json()) as { messages: ChatMessage[] };
 
     if (!messages || messages.length === 0) {
-      return NextResponse.json({ error: "No messages provided" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "No messages provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-    if (!lastUserMsg) {
-      return NextResponse.json({ error: "No user message found" }, { status: 400 });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    const intent = detectIntent(lastUserMsg.content);
-    const mcpResult = await callMCPTool(intent.tool, intent.args);
-    const response = formatResponse(intent.tool, mcpResult);
+    const client = new Anthropic({ apiKey });
+    const tools = await getMCPTools();
 
-    return NextResponse.json({ response });
+    // Convert chat messages to Anthropic format
+    const anthropicMessages: Anthropic.MessageParam[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // Stream response with tool use loop
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          let currentMessages = [...anthropicMessages];
+          let iterationCount = 0;
+          const MAX_ITERATIONS = 10;
+
+          while (iterationCount < MAX_ITERATIONS) {
+            iterationCount++;
+
+            const response = await client.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 4096,
+              system: SYSTEM_PROMPT,
+              tools,
+              messages: currentMessages,
+            });
+
+            // Process response blocks
+            let hasToolUse = false;
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+            let textContent = "";
+
+            for (const block of response.content) {
+              if (block.type === "text") {
+                textContent += block.text;
+              } else if (block.type === "tool_use") {
+                hasToolUse = true;
+
+                // Send a status update for tool use
+                const statusEvent = `data: ${JSON.stringify({
+                  type: "tool_use",
+                  tool: block.name,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(statusEvent));
+
+                // Call the MCP tool
+                const toolResult = await callMCPTool(
+                  block.name,
+                  block.input as Record<string, unknown>
+                );
+
+                toolResults.push({
+                  type: "tool_result",
+                  tool_use_id: block.id,
+                  content: toolResult,
+                });
+              }
+            }
+
+            if (hasToolUse) {
+              // Add assistant response and tool results to messages
+              currentMessages = [
+                ...currentMessages,
+                { role: "assistant", content: response.content },
+                { role: "user", content: toolResults },
+              ];
+              // Continue the loop so Claude can process tool results
+              continue;
+            }
+
+            // No tool use - send the final text
+            if (textContent) {
+              const textEvent = `data: ${JSON.stringify({
+                type: "text",
+                content: textContent,
+              })}\n\n`;
+              controller.enqueue(encoder.encode(textEvent));
+            }
+
+            break;
+          }
+
+          // Send done event
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (error) {
+          console.error("Stream error:", error);
+          const errorEvent = `data: ${JSON.stringify({
+            type: "error",
+            content: "Erreur lors du traitement de votre demande. Veuillez réessayer.",
+          })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Chat API error:", error);
-    return NextResponse.json(
-      { response: "Erreur lors de la connexion au serveur MCP. Le serveur est peut-etre temporairement indisponible." },
-      { status: 500 }
+    return new Response(
+      JSON.stringify({
+        error: "Erreur lors de la connexion au serveur. Veuillez réessayer.",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
