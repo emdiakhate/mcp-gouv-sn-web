@@ -468,6 +468,317 @@ function GroupedBarViz({ viz }: { viz: VizChartData }) {
   );
 }
 
+/* ─── Status color map for dashboard/comparison ─── */
+const STATUS_STYLES: Record<string, { bg: string; border: string; text: string }> = {
+  danger:  { bg: "#FCEBEB", border: "#F09595", text: "#A32D2D" },
+  warning: { bg: "#FAEEDA", border: "#EF9F27", text: "#854F0B" },
+  success: { bg: "#E1F5EE", border: "#5DCAA5", text: "#0F6E56" },
+  neutral: { bg: "#F1EFE8", border: "#B4B2A9", text: "#444441" },
+};
+
+const STATUS_ICONS: Record<string, string> = {
+  danger: "✗",
+  warning: "⚠",
+  success: "✓",
+  neutral: "ℹ",
+};
+
+const CHART_COLORS = [
+  "#1D9E75", "#378ADD", "#7F77DD", "#D85A30",
+  "#BA7517", "#D4537E", "#639922", "#E24B4A",
+];
+
+/* ─── Dashboard: stat cards + chart + analysis cards + insight ─── */
+function DashboardViz({ viz }: { viz: VizChartData }) {
+  const chartData = useMemo(() => {
+    if (!viz.chart) return null;
+
+    const mainDatasets = (viz.chart.datasets || []).map((ds, i) => {
+      const color = ds.color || CHART_COLORS[i % CHART_COLORS.length];
+      return {
+        label: ds.label,
+        data: ds.data,
+        borderColor: color,
+        backgroundColor: withAlpha(color, 0.08),
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: true,
+        tension: 0.3,
+      };
+    });
+
+    const refDatasets = (viz.chart.referenceLines || []).map((ref) => ({
+      label: ref.label,
+      data: new Array((viz.chart!.labels || []).length).fill(ref.value),
+      borderColor: ref.color || "#E24B4A",
+      backgroundColor: "transparent",
+      borderWidth: 1.5,
+      borderDash: [6, 4] as number[],
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false,
+      tension: 0,
+    }));
+
+    return {
+      labels: viz.chart.labels || [],
+      datasets: [...mainDatasets, ...refDatasets],
+    };
+  }, [viz.chart]);
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.06)" } },
+      },
+    }),
+    []
+  );
+
+  return (
+    <div
+      className="rounded-lg my-3 overflow-hidden"
+      style={{ border: "0.5px solid #E5E5E5" }}
+    >
+      {/* Title */}
+      {(viz.title || viz.subtitle) && (
+        <div className="px-4 pt-4 pb-1">
+          {viz.title && (
+            <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              {viz.title}
+            </h3>
+          )}
+          {viz.subtitle && (
+            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+              {viz.subtitle}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="px-4 py-3 space-y-3">
+        {/* Stat cards grid */}
+        {viz.statCards && viz.statCards.length > 0 && (
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${Math.min(viz.statCards.length, 4)}, 1fr)`,
+            }}
+          >
+            {viz.statCards.map((card, i) => {
+              const s = STATUS_STYLES[card.status] || STATUS_STYLES.neutral;
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg p-3 text-center"
+                  style={{ backgroundColor: s.bg, border: `0.5px solid ${s.border}` }}
+                >
+                  <p className="text-xl font-bold" style={{ color: s.text }}>
+                    {card.value}
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: s.text, opacity: 0.9 }}>
+                    {card.unit}
+                  </p>
+                  <p className="text-[10px] mt-1" style={{ color: s.text, opacity: 0.7 }}>
+                    {card.label}
+                  </p>
+                  {card.context && (
+                    <span
+                      className="inline-block text-[10px] mt-1 px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: "rgba(255,255,255,0.5)", color: s.text }}
+                    >
+                      {card.context}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Chart legend + chart */}
+        {chartData && viz.chart && (
+          <>
+            <div className="flex flex-wrap gap-3">
+              {viz.chart.datasets.map((ds, i) => (
+                <span key={i} className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--muted)" }}>
+                  <span
+                    className="inline-block rounded-sm"
+                    style={{
+                      width: 16,
+                      height: 3,
+                      backgroundColor: ds.color || CHART_COLORS[i % CHART_COLORS.length],
+                    }}
+                  />
+                  {ds.label}
+                </span>
+              ))}
+              {viz.chart.referenceLines?.map((ref, i) => (
+                <span key={`ref-${i}`} className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--muted)" }}>
+                  <span
+                    className="inline-block"
+                    style={{
+                      width: 16,
+                      height: 0,
+                      borderTop: `2px dashed ${ref.color || "#E24B4A"}`,
+                    }}
+                  />
+                  {ref.label}
+                </span>
+              ))}
+            </div>
+            <div style={{ height: 260 }}>
+              {viz.chart.type === "bar" ? (
+                <Bar data={chartData} options={chartOptions} />
+              ) : (
+                <Line data={chartData} options={chartOptions} />
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Analysis cards */}
+        {viz.analysisCards && viz.analysisCards.length > 0 && (
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
+          >
+            {viz.analysisCards.map((card, i) => {
+              const s = STATUS_STYLES[card.status] || STATUS_STYLES.neutral;
+              const icon = STATUS_ICONS[card.status] || "ℹ";
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg px-3 py-2.5"
+                  style={{ backgroundColor: s.bg, border: `0.5px solid ${s.border}` }}
+                >
+                  <p className="text-xs font-semibold mb-1" style={{ color: s.text }}>
+                    {icon} {card.title}
+                  </p>
+                  <p className="text-[11px] leading-relaxed" style={{ color: s.text, opacity: 0.9 }}>
+                    {card.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Insight */}
+      {viz.insight && (
+        <div
+          className="mx-4 mb-3 flex items-start gap-2 rounded-md px-3 py-2 text-xs"
+          style={{ backgroundColor: "#FAEEDA", border: "0.5px solid #EF9F27", color: "#633806" }}
+        >
+          <span className="flex-shrink-0">💡</span>
+          <span>{viz.insight}</span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-4 py-2 border-t" style={{ borderColor: "#E5E5E5" }}>
+        <button
+          onClick={() => exportVizToExcel(viz)}
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer hover:opacity-80"
+          style={{ backgroundColor: "var(--surface)", color: "var(--foreground)" }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Télécharger Excel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Comparison: items grid + optional chart ─── */
+function ComparisonViz({ viz }: { viz: VizChartData }) {
+  const chartData = useMemo(() => {
+    if (!viz.chart) return null;
+    const datasets = (viz.chart.datasets || []).map((ds, i) => {
+      const color = ds.color || CHART_COLORS[i % CHART_COLORS.length];
+      return {
+        label: ds.label,
+        data: ds.data,
+        borderColor: color,
+        backgroundColor: withAlpha(color, 0.1),
+        borderWidth: 2.5,
+        pointRadius: 4,
+        fill: true,
+        tension: 0.3,
+      };
+    });
+    return { labels: viz.chart.labels || [], datasets };
+  }, [viz.chart]);
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: (viz.chart?.datasets?.length || 0) > 1, position: "top" as const } },
+      scales: { y: { beginAtZero: true } },
+    }),
+    [viz.chart]
+  );
+
+  return (
+    <VizCard viz={viz}>
+      {/* Comparison items */}
+      {viz.items && viz.items.length > 0 && (
+        <div
+          className="grid gap-2 mb-3"
+          style={{ gridTemplateColumns: `repeat(${Math.min(viz.items.length, 4)}, 1fr)` }}
+        >
+          {viz.items.map((item, i) => {
+            const s = STATUS_STYLES[item.color] || STATUS_STYLES.neutral;
+            return (
+              <div
+                key={i}
+                className="rounded-lg p-3 text-center"
+                style={{ backgroundColor: s.bg, border: `0.5px solid ${s.border}` }}
+              >
+                <p className="text-lg font-bold" style={{ color: s.text }}>
+                  {item.value}
+                </p>
+                {item.unit && (
+                  <p className="text-[11px]" style={{ color: s.text, opacity: 0.8 }}>
+                    {item.unit}
+                  </p>
+                )}
+                <p className="text-[10px] mt-1" style={{ color: s.text, opacity: 0.7 }}>
+                  {item.label}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Optional chart */}
+      {chartData && (
+        <div style={{ height: 220 }}>
+          {viz.chart?.type === "bar" ? (
+            <Bar data={chartData} options={chartOptions} />
+          ) : (
+            <Line data={chartData} options={chartOptions} />
+          )}
+        </div>
+      )}
+    </VizCard>
+  );
+}
+
 /* ─── Main renderer ─── */
 export default function VizRenderer({ viz }: { viz: VizChartData }) {
   switch (viz.type) {
@@ -483,6 +794,10 @@ export default function VizRenderer({ viz }: { viz: VizChartData }) {
       return <TableViz viz={viz} />;
     case "grouped-bar":
       return <GroupedBarViz viz={viz} />;
+    case "dashboard":
+      return <DashboardViz viz={viz} />;
+    case "comparison":
+      return <ComparisonViz viz={viz} />;
     default:
       return null;
   }

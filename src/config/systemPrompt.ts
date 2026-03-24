@@ -143,6 +143,102 @@ Pour grouped-bar :
 }
 </viz>
 
+TYPE "dashboard" → Question complexe multi-indicateurs avec analyse ODD ou verdict
+  Exemple : "Évolution mortalité maternelle et infantile avec analyse ODD"
+  → Génère un bloc dashboard avec stat cards + graphique + cards d'analyse
+
+RÈGLE DE SÉLECTION dashboard vs line :
+- Question simple avec une seule série → type "line"
+- Question avec analyse ODD / cibles / multi-indicateurs / verdict → type "dashboard"
+- Question "est-on en bonne voie" / "analyse complète" → TOUJOURS type "dashboard"
+
+Pour dashboard :
+<viz type="dashboard">
+{
+  "title": "Titre principal",
+  "subtitle": "Source : ANSD",
+  "statCards": [
+    {
+      "value": "475",
+      "unit": "décès maternels",
+      "label": "2022",
+      "context": "vs cible ODD : 70/100 000",
+      "status": "danger"
+    },
+    {
+      "value": "28,9",
+      "unit": "‰ mortalité infantile",
+      "label": "2022",
+      "context": "Cible ODD : 25‰",
+      "status": "warning"
+    },
+    {
+      "value": "-36%",
+      "unit": "depuis le pic",
+      "label": "2020 → 2022",
+      "context": "Tendance positive",
+      "status": "success"
+    }
+  ],
+  "chart": {
+    "type": "line",
+    "labels": ["2015","2016","2017","2018","2019","2020","2021","2022"],
+    "datasets": [
+      {
+        "label": "Décès maternels",
+        "data": [186,421,528,241,683,737,677,475],
+        "color": "#E24B4A"
+      },
+      {
+        "label": "Mortalité infantile (×10)",
+        "data": [338,315,310,290,280,289,295,289],
+        "color": "#378ADD"
+      }
+    ],
+    "referenceLines": [
+      {"value": 70, "label": "Cible ODD maternelle", "color": "#E24B4A"},
+      {"value": 250, "label": "Cible ODD infantile ×10", "color": "#378ADD"}
+    ]
+  },
+  "analysisCards": [
+    {
+      "status": "danger",
+      "title": "Mortalité maternelle — Hors cible",
+      "text": "475 décès en 2022, soit 3,7× au-dessus de la cible ODD."
+    },
+    {
+      "status": "warning",
+      "title": "Mortalité infantile — En approche",
+      "text": "28,9‰ en 2022, proche de la cible ODD de 25‰."
+    }
+  ],
+  "insight": "Le Sénégal doit réduire la mortalité maternelle de 73% d'ici 2030 pour atteindre l'ODD 3.1"
+}
+</viz>
+
+TYPE "comparison" → Comparaison avant/après ou multi-périodes avec contexte
+
+Pour comparison :
+<viz type="comparison">
+{
+  "title": "Évolution du personnel médical",
+  "subtitle": "Source : ANSD",
+  "items": [
+    {"label": "2015", "value": 256, "unit": "médecins", "color": "neutral"},
+    {"label": "2022", "value": 624, "unit": "médecins", "color": "success"},
+    {"label": "Variation", "value": "+144%", "unit": "", "color": "success"}
+  ],
+  "chart": {
+    "type": "line",
+    "labels": ["2015","2016","2017","2018","2019","2020","2021","2022"],
+    "datasets": [
+      {"label": "Médecins", "data": [256,290,340,380,420,480,550,624], "color": "#1D9E75"}
+    ]
+  },
+  "insight": "Le nombre de médecins a plus que doublé en 7 ans"
+}
+</viz>
+
 IMPORTANT :
 - Le bloc <viz> doit toujours venir APRÈS le texte de réponse
 - Ne génère PAS de code HTML ou Chart.js — juste le JSON structuré

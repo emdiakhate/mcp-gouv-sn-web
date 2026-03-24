@@ -1,15 +1,44 @@
-export type VizType = "bar" | "line" | "pie" | "stat" | "table" | "grouped-bar";
+export type VizType = "bar" | "line" | "pie" | "stat" | "table" | "grouped-bar" | "dashboard" | "comparison";
 
 export interface VizDataset {
   label: string;
   data: number[];
   unit?: string;
+  color?: string;
 }
 
 export interface VizReferenceLine {
   value: number;
   label: string;
   color?: string;
+}
+
+export interface DashboardStatCard {
+  value: string;
+  unit: string;
+  label: string;
+  context?: string;
+  status: "danger" | "warning" | "success" | "neutral";
+}
+
+export interface DashboardAnalysisCard {
+  status: "danger" | "warning" | "success" | "neutral";
+  title: string;
+  text: string;
+}
+
+export interface DashboardChart {
+  type: "line" | "bar";
+  labels: string[];
+  datasets: VizDataset[];
+  referenceLines?: VizReferenceLine[];
+}
+
+export interface ComparisonItem {
+  label: string;
+  value: number | string;
+  unit: string;
+  color: "danger" | "warning" | "success" | "neutral";
 }
 
 export interface VizChartData {
@@ -31,6 +60,12 @@ export interface VizChartData {
   columns?: string[];
   rows?: (string | number)[][];
   highlight?: string;
+  // dashboard-specific
+  statCards?: DashboardStatCard[];
+  chart?: DashboardChart;
+  analysisCards?: DashboardAnalysisCard[];
+  // comparison-specific
+  items?: ComparisonItem[];
 }
 
 export interface ParsedMessage {
