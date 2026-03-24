@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SenegalFlag from "./SenegalFlag";
+import VizRenderer from "./VizRenderer";
+import { parseMessageWithViz } from "@/utils/parseViz";
 
 export interface Message {
   id: string;
@@ -19,7 +22,6 @@ interface ChatMessagesProps {
 
 /** Icon for each tool type */
 function ToolIcon({ name }: { name: string }) {
-  // Search-related tools
   if (name.includes("Recherche") || name.includes("search")) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -28,7 +30,6 @@ function ToolIcon({ name }: { name: string }) {
       </svg>
     );
   }
-  // Data/query tools
   if (name.includes("Interrogation") || name.includes("données") || name.includes("query")) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -38,7 +39,6 @@ function ToolIcon({ name }: { name: string }) {
       </svg>
     );
   }
-  // Info/metadata tools
   if (name.includes("Récupération") || name.includes("info") || name.includes("dimensions")) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,7 +48,6 @@ function ToolIcon({ name }: { name: string }) {
       </svg>
     );
   }
-  // List/explore tools
   if (name.includes("Exploration") || name.includes("Chargement") || name.includes("list")) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -61,7 +60,6 @@ function ToolIcon({ name }: { name: string }) {
       </svg>
     );
   }
-  // Default tool icon
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
@@ -69,7 +67,6 @@ function ToolIcon({ name }: { name: string }) {
   );
 }
 
-/** Completed tool call card */
 function ToolCallCard({ name }: { name: string }) {
   return (
     <div
@@ -87,7 +84,6 @@ function ToolCallCard({ name }: { name: string }) {
   );
 }
 
-/** Active tool spinner */
 function ActiveToolCard({ name }: { name: string }) {
   return (
     <div
@@ -102,6 +98,29 @@ function ActiveToolCard({ name }: { name: string }) {
         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
       </svg>
     </div>
+  );
+}
+
+/** Renders an assistant message: markdown text + any <viz> blocks */
+function AssistantMessage({ content }: { content: string }) {
+  const parsed = useMemo(() => parseMessageWithViz(content), [content]);
+
+  return (
+    <>
+      {parsed.text && (
+        <div
+          className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
+          style={{ color: "var(--foreground)" }}
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {parsed.text}
+          </ReactMarkdown>
+        </div>
+      )}
+      {parsed.vizBlocks.map((viz, i) => (
+        <VizRenderer key={i} viz={viz} />
+      ))}
+    </>
   );
 }
 
@@ -125,12 +144,7 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
             )}
             <div className="flex-1 min-w-0">
               {msg.role === "assistant" ? (
-                <div className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
-                  style={{ color: "var(--foreground)" }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
+                <AssistantMessage content={msg.content} />
               ) : (
                 <div
                   className="message-content text-sm leading-relaxed whitespace-pre-wrap"
@@ -148,11 +162,9 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
               <SenegalFlag size={24} />
             </div>
             <div className="flex-1 space-y-2">
-              {/* Completed tool calls */}
               {toolHistory.slice(0, -1).map((tool, i) => (
                 <ToolCallCard key={i} name={tool} />
               ))}
-              {/* Currently active tool */}
               {toolStatus ? (
                 <ActiveToolCard name={toolStatus} />
               ) : (

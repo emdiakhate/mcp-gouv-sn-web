@@ -1,25 +1,12 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
+import { SYSTEM_PROMPT } from "@/config/systemPrompt";
 
 const MCP_SERVER_URL =
   process.env.MCP_SERVER_URL || "https://mcp-gouv-sn-production.up.railway.app";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
-
-const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans les données publiques du Sénégal. Tu aides les utilisateurs à explorer et comprendre les données de l'ANSD (Agence Nationale de la Statistique et de la Démographie).
-
-Tu as accès à des outils MCP qui te permettent d'interroger les datasets de l'ANSD. Utilise-les pour répondre aux questions des utilisateurs.
-
-Règles :
-- Réponds toujours en français
-- Utilise les outils disponibles pour trouver les données pertinentes avant de répondre
-- Commence par lister les thèmes ou chercher les datasets pertinents si tu n'es pas sûr
-- Présente les données de manière claire avec des tableaux markdown quand c'est approprié
-- Si l'utilisateur pose une question générale, utilise list_themes pour montrer ce qui est disponible
-- Si l'utilisateur cherche des données spécifiques, utilise search_datasets puis get_dataset_info et query_dataset_data
-- Ne fabrique jamais de données. Si tu ne trouves pas l'information, dis-le clairement
-- Quand tu affiches des données tabulaires, utilise des tableaux markdown`;
 
 interface ChatMessage {
   role: "user" | "assistant";
