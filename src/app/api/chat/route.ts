@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 const MCP_SERVER_URL =
   process.env.MCP_SERVER_URL || "https://mcp-gouv-sn-production.up.railway.app";
+
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
 
 const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans les données publiques du Sénégal. Tu aides les utilisateurs à explorer et comprendre les données de l'ANSD (Agence Nationale de la Statistique et de la Démographie).
 
@@ -40,11 +43,24 @@ interface MCPTool {
   inputSchema?: MCPToolInputSchema;
 }
 
-let cachedTools: Anthropic.Tool[] | null = null;
+interface OpenAITool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+  };
+}
+
+let cachedTools: OpenAITool[] | null = null;
 let toolsCacheTime = 0;
 const TOOLS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-async function getMCPTools(): Promise<Anthropic.Tool[]> {
+async function getMCPTools(): Promise<OpenAITool[]> {
   if (cachedTools && Date.now() - toolsCacheTime < TOOLS_CACHE_TTL) {
     return cachedTools;
   }
@@ -64,12 +80,15 @@ async function getMCPTools(): Promise<Anthropic.Tool[]> {
   const mcpTools: MCPTool[] = data.result?.tools || [];
 
   cachedTools = mcpTools.map((tool) => ({
-    name: tool.name,
-    description: tool.description || "",
-    input_schema: {
-      type: "object" as const,
-      properties: tool.inputSchema?.properties || {},
-      required: tool.inputSchema?.required || [],
+    type: "function" as const,
+    function: {
+      name: tool.name,
+      description: tool.description || "",
+      parameters: {
+        type: "object" as const,
+        properties: tool.inputSchema?.properties || {},
+        required: tool.inputSchema?.required || [],
+      },
     },
   }));
 
@@ -112,91 +131,98 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+        JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const client = new Anthropic({ apiKey });
+    const client = new OpenAI({
+      baseURL: OPENROUTER_BASE_URL,
+      apiKey,
+    });
+
     const tools = await getMCPTools();
 
-    // Convert chat messages to Anthropic format
-    const anthropicMessages: Anthropic.MessageParam[] = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Build OpenAI-format messages
+    const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+    ];
 
     // Stream response with tool use loop
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          let currentMessages = [...anthropicMessages];
+          let currentMessages = [...openaiMessages];
           let iterationCount = 0;
           const MAX_ITERATIONS = 10;
 
           while (iterationCount < MAX_ITERATIONS) {
             iterationCount++;
 
-            const response = await client.messages.create({
-              model: "claude-sonnet-4-20250514",
+            const response = await client.chat.completions.create({
+              model: OPENROUTER_MODEL,
               max_tokens: 4096,
-              system: SYSTEM_PROMPT,
               tools,
               messages: currentMessages,
             });
 
-            // Process response blocks
-            let hasToolUse = false;
-            const toolResults: Anthropic.ToolResultBlockParam[] = [];
-            let textContent = "";
+            const choice = response.choices[0];
+            if (!choice) break;
 
-            for (const block of response.content) {
-              if (block.type === "text") {
-                textContent += block.text;
-              } else if (block.type === "tool_use") {
-                hasToolUse = true;
+            const message = choice.message;
+            const toolCalls = message.tool_calls;
 
-                // Send a status update for tool use
+            if (toolCalls && toolCalls.length > 0) {
+              // Add assistant message with tool calls to history
+              currentMessages.push(message);
+
+              // Execute each tool call
+              for (const toolCall of toolCalls) {
+                if (toolCall.type !== "function") continue;
+                const toolName = toolCall.function.name;
+
+                // Send status update
                 const statusEvent = `data: ${JSON.stringify({
                   type: "tool_use",
-                  tool: block.name,
+                  tool: toolName,
                 })}\n\n`;
                 controller.enqueue(encoder.encode(statusEvent));
 
-                // Call the MCP tool
-                const toolResult = await callMCPTool(
-                  block.name,
-                  block.input as Record<string, unknown>
-                );
+                // Parse arguments and call MCP tool
+                let args: Record<string, unknown> = {};
+                try {
+                  args = JSON.parse(toolCall.function.arguments);
+                } catch {
+                  // empty args if parsing fails
+                }
 
-                toolResults.push({
-                  type: "tool_result",
-                  tool_use_id: block.id,
+                const toolResult = await callMCPTool(toolName, args);
+
+                // Add tool result to messages
+                currentMessages.push({
+                  role: "tool",
+                  tool_call_id: toolCall.id,
                   content: toolResult,
                 });
               }
-            }
 
-            if (hasToolUse) {
-              // Add assistant response and tool results to messages
-              currentMessages = [
-                ...currentMessages,
-                { role: "assistant", content: response.content },
-                { role: "user", content: toolResults },
-              ];
-              // Continue the loop so Claude can process tool results
+              // Continue loop so the model can process tool results
               continue;
             }
 
-            // No tool use - send the final text
-            if (textContent) {
+            // No tool calls - send final text
+            if (message.content) {
               const textEvent = `data: ${JSON.stringify({
                 type: "text",
-                content: textContent,
+                content: message.content,
               })}\n\n`;
               controller.enqueue(encoder.encode(textEvent));
             }
@@ -204,7 +230,6 @@ export async function POST(request: NextRequest) {
             break;
           }
 
-          // Send done event
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
