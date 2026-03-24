@@ -253,12 +253,22 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Chat API error:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Erreur lors de la connexion au serveur. Veuillez réessayer.",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Chat API error:", errMsg);
+
+    // Provide a more specific error message
+    let userMessage =
+      "Erreur lors de la connexion au serveur. Veuillez réessayer.";
+    if (
+      errMsg.includes("ECONNREFUSED") ||
+      errMsg.includes("fetch failed")
+    ) {
+      userMessage = `Impossible de contacter le serveur MCP (${MCP_SERVER_URL}). Vérifiez que le serveur est en ligne ou supprimez MCP_SERVER_URL de .env.local pour utiliser le serveur de production.`;
+    }
+
+    return new Response(JSON.stringify({ error: userMessage }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

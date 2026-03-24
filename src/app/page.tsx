@@ -91,7 +91,10 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          body?.error || `Erreur serveur (HTTP ${res.status})`
+        );
       }
 
       const reader = res.body?.getReader();
@@ -144,11 +147,14 @@ export default function Home() {
             : c
         )
       );
-    } catch {
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "";
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content:
+          detail ||
           "Erreur de connexion au serveur. Vérifiez que le serveur est en ligne et que la clé API est configurée.",
       };
       setConversations((prev) =>
