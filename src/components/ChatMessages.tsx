@@ -1,11 +1,79 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SenegalFlag from "./SenegalFlag";
 import VizRenderer from "./VizRenderer";
 import { parseMessageWithViz } from "@/utils/parseViz";
+
+/* ─── Custom markdown components ─── */
+const markdownComponents = {
+  h1: (props: ComponentPropsWithoutRef<"h1">) => (
+    <h1 className="text-lg font-bold mt-4 mb-2 pb-1 border-b" style={{ color: "var(--foreground)", borderColor: "var(--border)" }} {...props} />
+  ),
+  h2: (props: ComponentPropsWithoutRef<"h2">) => (
+    <h2 className="text-base font-bold mt-3 mb-1.5" style={{ color: "var(--foreground)" }} {...props} />
+  ),
+  h3: (props: ComponentPropsWithoutRef<"h3">) => (
+    <h3 className="text-sm font-bold mt-2 mb-1" style={{ color: "var(--foreground)" }} {...props} />
+  ),
+  blockquote: (props: ComponentPropsWithoutRef<"blockquote">) => (
+    <blockquote
+      className="border-l-3 pl-3 my-2 text-sm italic"
+      style={{ borderColor: "var(--accent)", color: "var(--muted)", backgroundColor: "var(--surface)", borderRadius: "0 6px 6px 0", padding: "8px 12px 8px 12px" }}
+      {...props}
+    />
+  ),
+  table: (props: ComponentPropsWithoutRef<"table">) => (
+    <div className="overflow-x-auto my-2 rounded-lg" style={{ border: "1px solid var(--border)" }}>
+      <table className="w-full text-xs border-collapse" {...props} />
+    </div>
+  ),
+  thead: (props: ComponentPropsWithoutRef<"thead">) => (
+    <thead style={{ backgroundColor: "var(--accent)", color: "#ffffff" }} {...props} />
+  ),
+  th: (props: ComponentPropsWithoutRef<"th">) => (
+    <th className="px-3 py-2 text-left font-semibold text-xs whitespace-nowrap" style={{ borderBottom: "1px solid var(--border)" }} {...props} />
+  ),
+  td: (props: ComponentPropsWithoutRef<"td">) => (
+    <td className="px-3 py-1.5 text-xs" style={{ borderBottom: "1px solid var(--border)" }} {...props} />
+  ),
+  tr: ({ ...props }: ComponentPropsWithoutRef<"tr">) => (
+    <tr className="even:bg-[var(--surface)]" {...props} />
+  ),
+  a: (props: ComponentPropsWithoutRef<"a">) => (
+    <a className="underline font-medium" style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />
+  ),
+  strong: (props: ComponentPropsWithoutRef<"strong">) => (
+    <strong className="font-semibold" style={{ color: "var(--foreground)" }} {...props} />
+  ),
+  ul: (props: ComponentPropsWithoutRef<"ul">) => (
+    <ul className="list-disc ml-5 mb-2 space-y-0.5" {...props} />
+  ),
+  ol: (props: ComponentPropsWithoutRef<"ol">) => (
+    <ol className="list-decimal ml-5 mb-2 space-y-0.5" {...props} />
+  ),
+  code: ({ className, children, ...props }: ComponentPropsWithoutRef<"code"> & { className?: string }) => {
+    const isBlock = className?.includes("language-");
+    if (isBlock) {
+      return (
+        <code className={`${className || ""} text-xs`} {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code
+        className="px-1.5 py-0.5 rounded text-xs font-mono"
+        style={{ backgroundColor: "var(--chip-bg)", color: "var(--accent)" }}
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
+};
 
 export interface Message {
   id: string;
@@ -148,10 +216,45 @@ function AssistantMessageText({ content }: { content: string }) {
       className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
       style={{ color: "var(--foreground)" }}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {parsed.text}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/* ─── Copy button for assistant messages ─── */
+function CopyMessageButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  const textOnly = useMemo(() => {
+    const parsed = parseMessageWithViz(content);
+    return parsed.text;
+  }, [content]);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(textOnly);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded cursor-pointer"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      title="Copier le message"
+    >
+      {copied ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -173,7 +276,7 @@ function AssistantMessageViz({ content }: { content: string }) {
 /* ─── Main component ─── */
 export default function ChatMessages({ messages, isLoading, toolStatus, toolHistory = [] }: ChatMessagesProps) {
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6">
+    <div className="px-4 py-6">
       <div className="max-w-3xl mx-auto space-y-4">
         {messages.map((msg) =>
           msg.role === "user" ? (
@@ -199,21 +302,27 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
             </div>
           ) : (
             /* ── Assistant bubble: left-aligned ── */
-            <div key={msg.id} className="flex justify-start gap-2.5 items-end">
+            <div key={msg.id} className="group flex justify-start gap-2.5 items-end">
               <div className="flex-shrink-0">
                 <SenegalFlag size={28} />
               </div>
               <div className="min-w-0" style={{ maxWidth: "85%" }}>
                 {/* Text bubble */}
-                <div
-                  className="px-4 py-3"
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    borderRadius: "18px 18px 18px 4px",
-                    border: "0.5px solid var(--border)",
-                  }}
-                >
-                  <AssistantMessageText content={msg.content} />
+                <div className="relative">
+                  <div
+                    className="px-4 py-3"
+                    style={{
+                      backgroundColor: "var(--surface)",
+                      borderRadius: "18px 18px 18px 4px",
+                      border: "0.5px solid var(--border)",
+                    }}
+                  >
+                    <AssistantMessageText content={msg.content} />
+                  </div>
+                  {/* Copy button appears on hover */}
+                  <div className="absolute -bottom-2 right-2">
+                    <CopyMessageButton content={msg.content} />
+                  </div>
                 </div>
                 {/* Viz blocks rendered outside the text bubble for full width */}
                 <AssistantMessageViz content={msg.content} />

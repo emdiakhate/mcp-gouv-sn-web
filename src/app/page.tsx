@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
-import SectorChips from "@/components/SectorChips";
-import ChatInput from "@/components/ChatInput";
+import ExampleCards from "@/components/ExampleCards";
+import ChatInput, { KeyboardHints } from "@/components/ChatInput";
 import ChatMessages, { type Message, type ToolCall } from "@/components/ChatMessages";
 
 const TOOL_LABELS: Record<string, string> = {
@@ -29,16 +29,44 @@ export default function Home() {
   const [toolHistory, setToolHistory] = useState<ToolCall[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages || [];
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K: new conversation
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        handleNewChat();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Track if user is near bottom of chat
+  const handleScroll = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const threshold = 150;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
+
+  const scrollToBottom = useCallback((instant?: boolean) => {
+    if (!messagesEndRef.current) return;
+    messagesEndRef.current.scrollIntoView({ behavior: instant ? "instant" : "smooth" });
+  }, []);
+
+  // Auto-scroll only when user is near bottom
   useEffect(() => {
-    scrollToBottom();
+    if (isNearBottomRef.current) {
+      scrollToBottom(isLoading);
+    }
   }, [messages, isLoading, scrollToBottom]);
 
   const createConversation = (firstMessage: string): string => {
@@ -243,19 +271,23 @@ export default function Home() {
 
             <div className="w-full max-w-2xl mb-6">
               <ChatInput onSend={handleSend} disabled={isLoading} />
+              <KeyboardHints />
             </div>
 
-            <SectorChips onSelect={handleSend} />
+            <ExampleCards onSelect={handleSend} />
           </div>
         ) : (
           <>
-            <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} toolHistory={toolHistory} />
-            <div ref={messagesEndRef} />
+            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+              <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} toolHistory={toolHistory} />
+              <div ref={messagesEndRef} />
+            </div>
             <div className="px-4 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
                 <ChatInput onSend={handleSend} disabled={isLoading} />
+                <KeyboardHints />
                 <p
-                  className="text-xs text-center mt-2"
+                  className="text-xs text-center mt-1"
                   style={{ color: "var(--muted)" }}
                 >
                   Données fournies par l&apos;ANSD via le protocole MCP - Propulsé par Claude

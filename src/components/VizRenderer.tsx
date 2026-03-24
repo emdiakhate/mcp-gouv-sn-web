@@ -17,6 +17,7 @@ import { Bar, Line, Pie } from "react-chartjs-2";
 import type { VizChartData } from "@/utils/parseViz";
 import { DATASET_COLORS, REGION_COLORS, VIZ_COLORS, withAlpha } from "@/constants/colors";
 import { exportVizToExcel, copyVizData } from "@/utils/exportExcel";
+import FullscreenModal from "./FullscreenModal";
 
 ChartJS.register(
   CategoryScale,
@@ -39,7 +40,9 @@ function VizCard({
   viz: VizChartData;
 }) {
   const [copied, setCopied] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const showExport = ["bar", "line", "grouped-bar", "table"].includes(viz.type);
+  const showExpand = ["bar", "line", "pie", "grouped-bar", "table"].includes(viz.type);
 
   const handleCopy = async () => {
     const text = copyVizData(viz);
@@ -49,88 +52,223 @@ function VizCard({
   };
 
   return (
-    <div
-      className="rounded-lg my-3 overflow-hidden"
-      style={{ border: "0.5px solid #E5E5E5" }}
-    >
-      {/* Header */}
-      {(viz.title || viz.subtitle) && (
-        <div className="px-4 pt-4 pb-1">
-          {viz.title && (
-            <h3
-              className="text-sm font-semibold"
-              style={{ color: "var(--foreground)" }}
-            >
-              {viz.title}
-            </h3>
-          )}
-          {viz.subtitle && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-              {viz.subtitle}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Chart / content */}
-      <div className="px-4 py-3">{children}</div>
-
-      {/* Insight */}
-      {viz.insight && (
-        <div
-          className="mx-4 mb-3 flex items-start gap-2 rounded-md px-3 py-2 text-xs"
-          style={{ backgroundColor: VIZ_COLORS.statBg, color: "#0f5132" }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="mt-0.5 flex-shrink-0"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
-          </svg>
-          <span>{viz.insight}</span>
-        </div>
-      )}
-
-      {/* Action buttons */}
+    <>
       <div
-        className="flex items-center gap-2 px-4 py-2 border-t"
-        style={{ borderColor: "#E5E5E5" }}
+        className="rounded-lg my-3 overflow-hidden"
+        style={{ border: "0.5px solid #E5E5E5" }}
       >
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer hover:opacity-80"
-          style={{ backgroundColor: "var(--surface)", color: "var(--foreground)" }}
+        {/* Header */}
+        {(viz.title || viz.subtitle) && (
+          <div className="px-4 pt-4 pb-1 flex items-start justify-between">
+            <div>
+              {viz.title && (
+                <h3
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  {viz.title}
+                </h3>
+              )}
+              {viz.subtitle && (
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  {viz.subtitle}
+                </p>
+              )}
+            </div>
+            {showExpand && (
+              <button
+                onClick={() => setFullscreen(true)}
+                className="p-1.5 rounded-lg cursor-pointer hover:opacity-80 flex-shrink-0"
+                style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+                title="Agrandir"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 3 21 3 21 9" />
+                  <polyline points="9 21 3 21 3 15" />
+                  <line x1="21" y1="3" x2="14" y2="10" />
+                  <line x1="3" y1="21" x2="10" y2="14" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Chart / content */}
+        <div className="px-4 py-3">{children}</div>
+
+        {/* Insight */}
+        {viz.insight && (
+          <div
+            className="mx-4 mb-3 flex items-start gap-2 rounded-md px-3 py-2 text-xs"
+            style={{ backgroundColor: VIZ_COLORS.statBg, color: "#0f5132" }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="mt-0.5 flex-shrink-0"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <span>{viz.insight}</span>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div
+          className="flex items-center gap-2 px-4 py-2 border-t"
+          style={{ borderColor: "#E5E5E5" }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-          {copied ? "Copié !" : "Copier"}
-        </button>
-        {showExport && (
           <button
-            onClick={() => exportVizToExcel(viz)}
+            onClick={handleCopy}
             className="flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer hover:opacity-80"
             style={{ backgroundColor: "var(--surface)", color: "var(--foreground)" }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
-            Télécharger Excel
+            {copied ? "Copié !" : "Copier"}
           </button>
-        )}
+          {showExport && (
+            <button
+              onClick={() => exportVizToExcel(viz)}
+              className="flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer hover:opacity-80"
+              style={{ backgroundColor: "var(--surface)", color: "var(--foreground)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Télécharger Excel
+            </button>
+          )}
+          {showExpand && (
+            <button
+              onClick={() => setFullscreen(true)}
+              className="flex items-center gap-1 rounded px-2 py-1 text-xs cursor-pointer hover:opacity-80 ml-auto"
+              style={{ backgroundColor: "var(--surface)", color: "var(--foreground)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 3 21 3 21 9" />
+                <polyline points="9 21 3 21 3 15" />
+                <line x1="21" y1="3" x2="14" y2="10" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
+              Agrandir
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Fullscreen modal */}
+      {fullscreen && (
+        <FullscreenModal onClose={() => setFullscreen(false)} title={viz.title}>
+          <VizRendererFullscreen viz={viz} />
+        </FullscreenModal>
+      )}
+    </>
   );
+}
+
+/* ─── Fullscreen viz renderer (larger heights) ─── */
+function VizRendererFullscreen({ viz }: { viz: VizChartData }) {
+  switch (viz.type) {
+    case "bar":
+      return <BarVizFS viz={viz} />;
+    case "line":
+      return <LineVizFS viz={viz} />;
+    case "pie":
+      return <PieVizFS viz={viz} />;
+    case "grouped-bar":
+      return <GroupedBarVizFS viz={viz} />;
+    case "table":
+      return <TableViz viz={viz} />;
+    default:
+      return null;
+  }
+}
+
+/* Fullscreen-sized chart wrappers that reuse the same data logic but with larger height */
+function BarVizFS({ viz }: { viz: VizChartData }) {
+  const hasLongLabels = viz.labels?.some((l) => l.length > 8);
+  const isHorizontal = hasLongLabels;
+  const data = useMemo(() => ({
+    labels: viz.labels || [],
+    datasets: (viz.datasets || []).map((ds, i) => {
+      const useMulti = viz.multiColor && (viz.datasets?.length || 0) <= 1;
+      return {
+        label: ds.label, data: ds.data,
+        backgroundColor: useMulti ? (viz.labels || []).map((_, li) => REGION_COLORS[li % REGION_COLORS.length]) : DATASET_COLORS[i % DATASET_COLORS.length],
+        borderRadius: 4, maxBarThickness: 50,
+      };
+    }),
+  }), [viz]);
+  const options = useMemo(() => ({
+    indexAxis: (isHorizontal ? "y" : "x") as "x" | "y",
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: (viz.datasets?.length || 0) > 1 } },
+    scales: { x: { beginAtZero: true }, y: { beginAtZero: true } },
+  }), [viz, isHorizontal]);
+  const h = isHorizontal ? Math.max(400, (viz.labels?.length || 0) * 45) : 500;
+  return <div style={{ height: h }}><Bar data={data} options={options} /></div>;
+}
+
+function LineVizFS({ viz }: { viz: VizChartData }) {
+  const data = useMemo(() => {
+    const main = (viz.datasets || []).map((ds, i) => ({
+      label: ds.label, data: ds.data,
+      borderColor: DATASET_COLORS[i % DATASET_COLORS.length],
+      backgroundColor: withAlpha(DATASET_COLORS[i % DATASET_COLORS.length], 0.1),
+      fill: true, tension: 0.3, pointRadius: 5, pointHoverRadius: 8,
+    }));
+    const refs = (viz.referenceLines || []).map((ref) => ({
+      label: ref.label, data: new Array((viz.labels || []).length).fill(ref.value),
+      borderColor: ref.color || "#E24B4A", backgroundColor: "transparent",
+      borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 0, fill: false, tension: 0,
+    }));
+    return { labels: viz.labels || [], datasets: [...main, ...refs] };
+  }, [viz]);
+  const options = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: true, position: "top" as const } },
+    scales: { y: { beginAtZero: true } },
+  }), []);
+  return <div style={{ height: 500 }}><Line data={data} options={options} /></div>;
+}
+
+function PieVizFS({ viz }: { viz: VizChartData }) {
+  const data = useMemo(() => ({
+    labels: viz.labels || [],
+    datasets: [{ data: viz.datasets?.[0]?.data || [], backgroundColor: (viz.labels || []).map((_, i) => REGION_COLORS[i % REGION_COLORS.length]), borderWidth: 1, borderColor: "#fff" }],
+  }), [viz]);
+  const options = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: "right" as const, labels: { boxWidth: 14, padding: 16, font: { size: 13 } } } },
+  }), []);
+  return <div style={{ height: 500 }}><Pie data={data} options={options} /></div>;
+}
+
+function GroupedBarVizFS({ viz }: { viz: VizChartData }) {
+  const data = useMemo(() => ({
+    labels: viz.labels || [],
+    datasets: (viz.datasets || []).map((ds, i) => ({
+      label: ds.label, data: ds.data,
+      backgroundColor: DATASET_COLORS[i % DATASET_COLORS.length], borderRadius: 4, maxBarThickness: 50,
+    })),
+  }), [viz]);
+  const options = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: true, position: "top" as const } },
+    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+  }), []);
+  return <div style={{ height: 500 }}><Bar data={data} options={options} /></div>;
 }
 
 /* ─── Stat card ─── */
