@@ -13,6 +13,7 @@ export interface VizChartData {
   labels?: string[];
   datasets?: VizDataset[];
   insight?: string;
+  multiColor?: boolean;
   // stat-specific
   value?: string;
   unit?: string;

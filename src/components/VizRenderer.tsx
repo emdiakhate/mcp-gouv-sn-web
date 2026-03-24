@@ -15,7 +15,7 @@ import {
 } from "chart.js";
 import { Bar, Line, Pie } from "react-chartjs-2";
 import type { VizChartData } from "@/utils/parseViz";
-import { DATASET_COLORS, VIZ_COLORS, withAlpha } from "@/constants/colors";
+import { DATASET_COLORS, REGION_COLORS, VIZ_COLORS, withAlpha } from "@/constants/colors";
 import { exportVizToExcel, copyVizData } from "@/utils/exportExcel";
 
 ChartJS.register(
@@ -195,13 +195,18 @@ function BarViz({ viz }: { viz: VizChartData }) {
   const data = useMemo(
     () => ({
       labels: viz.labels || [],
-      datasets: (viz.datasets || []).map((ds, i) => ({
-        label: ds.label,
-        data: ds.data,
-        backgroundColor: DATASET_COLORS[i % DATASET_COLORS.length],
-        borderRadius: 4,
-        maxBarThickness: 40,
-      })),
+      datasets: (viz.datasets || []).map((ds, i) => {
+        const useMulti = viz.multiColor && (viz.datasets?.length || 0) <= 1;
+        return {
+          label: ds.label,
+          data: ds.data,
+          backgroundColor: useMulti
+            ? (viz.labels || []).map((_, li) => REGION_COLORS[li % REGION_COLORS.length])
+            : DATASET_COLORS[i % DATASET_COLORS.length],
+          borderRadius: 4,
+          maxBarThickness: 40,
+        };
+      }),
     }),
     [viz]
   );
@@ -307,7 +312,7 @@ function PieViz({ viz }: { viz: VizChartData }) {
         {
           data: ds?.data || [],
           backgroundColor: (viz.labels || []).map(
-            (_, i) => DATASET_COLORS[i % DATASET_COLORS.length]
+            (_, i) => REGION_COLORS[i % REGION_COLORS.length]
           ),
           borderWidth: 1,
           borderColor: "#fff",

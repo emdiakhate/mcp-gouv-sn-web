@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
 import SectorChips from "@/components/SectorChips";
 import ChatInput from "@/components/ChatInput";
-import ChatMessages, { type Message } from "@/components/ChatMessages";
+import ChatMessages, { type Message, type ToolCall } from "@/components/ChatMessages";
 
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "Exploration des thèmes disponibles",
@@ -26,7 +26,7 @@ export default function Home() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
-  const [toolHistory, setToolHistory] = useState<string[]>([]);
+  const [toolHistory, setToolHistory] = useState<ToolCall[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,8 +44,8 @@ export default function Home() {
   const createConversation = (firstMessage: string): string => {
     const id = Date.now().toString();
     const title =
-      firstMessage.length > 40
-        ? firstMessage.substring(0, 40) + "..."
+      firstMessage.length > 35
+        ? firstMessage.substring(0, 35) + "..."
         : firstMessage;
     const newConv: Conversation = { id, title, messages: [] };
     setConversations((prev) => [newConv, ...prev]);
@@ -123,8 +123,14 @@ export default function Home() {
             const event = JSON.parse(data);
             if (event.type === "tool_use") {
               const label = TOOL_LABELS[event.tool] || event.tool;
+              // Mark previous active tool as done, add new one
+              setToolHistory((prev) => {
+                const updated = prev.map((t) =>
+                  t.done ? t : { ...t, done: true }
+                );
+                return [...updated, { name: label, args: event.args, done: false }];
+              });
               setToolStatus(label);
-              setToolHistory((prev) => [...prev, label]);
             } else if (event.type === "text") {
               fullText += event.content;
             } else if (event.type === "error") {
@@ -192,14 +198,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen" style={{ backgroundColor: "var(--background)" }}>
-      {sidebarOpen && (
-        <Sidebar
-          conversations={conversations}
-          activeConversation={activeConvId}
-          onNewChat={handleNewChat}
-          onSelectConversation={setActiveConvId}
-        />
-      )}
+      <Sidebar
+        conversations={conversations}
+        activeConversation={activeConvId}
+        onNewChat={handleNewChat}
+        onSelectConversation={setActiveConvId}
+        collapsed={!sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
