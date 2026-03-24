@@ -26,6 +26,7 @@ export default function Home() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [toolHistory, setToolHistory] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +73,7 @@ export default function Home() {
 
     setIsLoading(true);
     setToolStatus(null);
+    setToolHistory([]);
 
     try {
       const currentConv = conversations.find((c) => c.id === convId);
@@ -120,7 +122,9 @@ export default function Home() {
           try {
             const event = JSON.parse(data);
             if (event.type === "tool_use") {
-              setToolStatus(TOOL_LABELS[event.tool] || `Outil: ${event.tool}`);
+              const label = TOOL_LABELS[event.tool] || event.tool;
+              setToolStatus(label);
+              setToolHistory((prev) => [...prev, label]);
             } else if (event.type === "text") {
               fullText += event.content;
             } else if (event.type === "error") {
@@ -132,11 +136,21 @@ export default function Home() {
         }
       }
 
+      // Strip XML tool call artifacts that some models inject into text
+      const cleanText = fullText
+        .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
+        .replace(/<invoke[\s\S]*?<\/antml:invoke>/g, "")
+        .replace(/<parameter[\s\S]*?<\/antml:parameter>/g, "")
+        .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
+        .replace(/<parameter[\s\S]*?<\/parameter>/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content:
-          fullText ||
+          cleanText ||
           "Désolé, je n'ai pas pu obtenir de réponse. Veuillez réessayer.",
       };
 
@@ -237,7 +251,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} />
+            <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} toolHistory={toolHistory} />
             <div ref={messagesEndRef} />
             <div className="px-4 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
