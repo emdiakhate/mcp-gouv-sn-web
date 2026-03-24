@@ -256,25 +256,42 @@ function BarViz({ viz }: { viz: VizChartData }) {
 
 /* ─── Line chart ─── */
 function LineViz({ viz }: { viz: VizChartData }) {
-  const data = useMemo(
-    () => ({
+  const data = useMemo(() => {
+    const mainDatasets = (viz.datasets || []).map((ds, i) => {
+      const color = DATASET_COLORS[i % DATASET_COLORS.length];
+      return {
+        label: ds.label,
+        data: ds.data,
+        borderColor: color,
+        backgroundColor: withAlpha(color, 0.1),
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      };
+    });
+
+    // Add reference lines (e.g. ODD targets) as dashed horizontal datasets
+    const refDatasets = (viz.referenceLines || []).map((ref) => ({
+      label: ref.label,
+      data: new Array((viz.labels || []).length).fill(ref.value),
+      borderColor: ref.color || "#E24B4A",
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false,
+      tension: 0,
+    }));
+
+    return {
       labels: viz.labels || [],
-      datasets: (viz.datasets || []).map((ds, i) => {
-        const color = DATASET_COLORS[i % DATASET_COLORS.length];
-        return {
-          label: ds.label,
-          data: ds.data,
-          borderColor: color,
-          backgroundColor: withAlpha(color, 0.1),
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-        };
-      }),
-    }),
-    [viz]
-  );
+      datasets: [...mainDatasets, ...refDatasets],
+    };
+  }, [viz]);
+
+  const hasRefLines = (viz.referenceLines?.length || 0) > 0;
 
   const options = useMemo(
     () => ({
@@ -282,7 +299,7 @@ function LineViz({ viz }: { viz: VizChartData }) {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          display: (viz.datasets?.length || 0) > 1,
+          display: (viz.datasets?.length || 0) > 1 || hasRefLines,
           position: "top" as const,
         },
       },
@@ -290,7 +307,7 @@ function LineViz({ viz }: { viz: VizChartData }) {
         y: { beginAtZero: true },
       },
     }),
-    [viz]
+    [viz, hasRefLines]
   );
 
   return (

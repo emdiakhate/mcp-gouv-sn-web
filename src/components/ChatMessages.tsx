@@ -137,27 +137,36 @@ function CompletedToolCard({ name }: { name: string }) {
   );
 }
 
-/* ─── Assistant message: markdown + viz ─── */
-function AssistantMessage({ content, toolCalls }: { content: string; toolCalls?: ToolCall[] }) {
+/* ─── Assistant message text part (inside bubble) ─── */
+function AssistantMessageText({ content }: { content: string }) {
   const parsed = useMemo(() => parseMessageWithViz(content), [content]);
 
+  if (!parsed.text) return null;
+
   return (
-    <>
-      {toolCalls && toolCalls.length > 0 && <ToolCallsDetails tools={toolCalls} />}
-      {parsed.text && (
-        <div
-          className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
-          style={{ color: "var(--foreground)" }}
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {parsed.text}
-          </ReactMarkdown>
-        </div>
-      )}
+    <div
+      className="message-content text-sm leading-relaxed prose prose-sm max-w-none"
+      style={{ color: "var(--foreground)" }}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {parsed.text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/* ─── Assistant message viz blocks (outside bubble for full width) ─── */
+function AssistantMessageViz({ content }: { content: string }) {
+  const parsed = useMemo(() => parseMessageWithViz(content), [content]);
+
+  if (parsed.vizBlocks.length === 0) return null;
+
+  return (
+    <div className="mt-2">
       {parsed.vizBlocks.map((viz, i) => (
         <VizRenderer key={i} viz={viz} />
       ))}
-    </>
+    </div>
   );
 }
 
@@ -190,20 +199,24 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
             </div>
           ) : (
             /* ── Assistant bubble: left-aligned ── */
-            <div key={msg.id} className="flex justify-start gap-2.5">
-              <div className="flex-shrink-0 mt-auto">
+            <div key={msg.id} className="flex justify-start gap-2.5 items-end">
+              <div className="flex-shrink-0">
                 <SenegalFlag size={28} />
               </div>
-              <div
-                className="px-4 py-3 min-w-0"
-                style={{
-                  backgroundColor: "var(--surface)",
-                  borderRadius: "18px 18px 18px 4px",
-                  maxWidth: "85%",
-                  border: "0.5px solid var(--border)",
-                }}
-              >
-                <AssistantMessage content={msg.content} />
+              <div className="min-w-0" style={{ maxWidth: "85%" }}>
+                {/* Text bubble */}
+                <div
+                  className="px-4 py-3"
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    borderRadius: "18px 18px 18px 4px",
+                    border: "0.5px solid var(--border)",
+                  }}
+                >
+                  <AssistantMessageText content={msg.content} />
+                </div>
+                {/* Viz blocks rendered outside the text bubble for full width */}
+                <AssistantMessageViz content={msg.content} />
               </div>
             </div>
           )
@@ -211,8 +224,8 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
 
         {/* ── Loading state ── */}
         {isLoading && (
-          <div className="flex justify-start gap-2.5">
-            <div className="flex-shrink-0 mt-auto">
+          <div className="flex justify-start gap-2.5 items-end">
+            <div className="flex-shrink-0">
               <SenegalFlag size={28} />
             </div>
             <div
@@ -220,7 +233,6 @@ export default function ChatMessages({ messages, isLoading, toolStatus, toolHist
               style={{
                 backgroundColor: "var(--surface)",
                 borderRadius: "18px 18px 18px 4px",
-                maxWidth: "85%",
                 border: "0.5px solid var(--border)",
               }}
             >

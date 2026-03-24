@@ -6,6 +6,12 @@ export interface VizDataset {
   unit?: string;
 }
 
+export interface VizReferenceLine {
+  value: number;
+  label: string;
+  color?: string;
+}
+
 export interface VizChartData {
   type: VizType;
   title?: string;
@@ -14,6 +20,7 @@ export interface VizChartData {
   datasets?: VizDataset[];
   insight?: string;
   multiColor?: boolean;
+  referenceLines?: VizReferenceLine[];
   // stat-specific
   value?: string;
   unit?: string;
@@ -53,7 +60,17 @@ export function parseMessageWithViz(content: string): ParsedMessage {
   }
 
   // Remove viz blocks from text
-  text = content.replace(/<viz\s+type="[^"]+">[\s\S]*?<\/viz>/g, "").trim();
+  text = content.replace(/<viz\s+type="[^"]+">[\s\S]*?<\/viz>/g, "");
+
+  // Strip any remaining MCP XML artifacts
+  text = text
+    .replace(/<ansd_mcp>[\s\S]*?<\/ansd_mcp>/g, "")
+    .replace(/<ansd_\w+>[\s\S]*?<\/ansd_\w+>/g, "")
+    .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+    .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
   return { text, vizBlocks };
 }

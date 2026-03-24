@@ -144,11 +144,15 @@ export default function Home() {
 
       // Strip XML tool call artifacts that some models inject into text
       const cleanText = fullText
+        .replace(/<ansd_mcp>[\s\S]*?<\/ansd_mcp>/g, "")
+        .replace(/<ansd_\w+>[\s\S]*?<\/ansd_\w+>/g, "")
         .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
         .replace(/<invoke[\s\S]*?<\/antml:invoke>/g, "")
         .replace(/<parameter[\s\S]*?<\/antml:parameter>/g, "")
         .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
         .replace(/<parameter[\s\S]*?<\/parameter>/g, "")
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+        .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
@@ -210,25 +214,13 @@ export default function Home() {
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header
-          className="flex items-center justify-between px-4 py-3 border-b"
+          className="flex items-center justify-center px-4 py-3 border-b"
           style={{ borderColor: "var(--border)" }}
         >
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg cursor-pointer"
-            style={{ backgroundColor: "var(--surface)" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
           <div className="flex items-center gap-2">
             <SenegalFlag size={20} />
             <span className="text-sm font-medium">Portail MCP Sénégal</span>
           </div>
-          <div className="w-8" />
         </header>
 
         {/* Welcome screen or chat */}
