@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
 import ExampleCards from "@/components/ExampleCards";
-import ChatInput, { KeyboardHints } from "@/components/ChatInput";
+import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type ToolCall } from "@/components/ChatMessages";
 
 const TOOL_LABELS: Record<string, string> = {
@@ -265,13 +265,12 @@ export default function Home() {
                 Bienvenue sur le portail mcp-gouv-sn
               </h1>
               <p className="text-sm" style={{ color: "var(--muted)" }}>
-                Explorez les données ouvertes du Sénégal - ANSD
+                Explorez les données ouvertes du Sénégal
               </p>
             </div>
 
             <div className="w-full max-w-2xl mb-6">
               <ChatInput onSend={handleSend} disabled={isLoading} />
-              <KeyboardHints />
             </div>
 
             <ExampleCards onSelect={handleSend} />
@@ -285,12 +284,11 @@ export default function Home() {
             <div className="px-4 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
                 <ChatInput onSend={handleSend} disabled={isLoading} />
-                <KeyboardHints />
                 <p
                   className="text-xs text-center mt-1"
                   style={{ color: "var(--muted)" }}
                 >
-                  Données fournies par l&apos;ANSD via le protocole MCP - Propulsé par Claude
+                  &copy; YNNOVIA
                 </p>
               </div>
             </div>
