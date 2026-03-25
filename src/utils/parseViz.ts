@@ -1,4 +1,4 @@
-export type VizType = "bar" | "line" | "pie" | "stat" | "table" | "grouped-bar" | "dashboard" | "comparison";
+export type VizType = "bar" | "line" | "pie" | "stat" | "table" | "grouped-bar" | "dashboard" | "comparison" | "excel";
 
 export interface VizDataset {
   label: string;
@@ -41,6 +41,12 @@ export interface ComparisonItem {
   color: "danger" | "warning" | "success" | "neutral";
 }
 
+export interface ExcelSheet {
+  name: string;
+  headers: string[];
+  rows: (string | number | null)[][];
+}
+
 export interface VizChartData {
   type: VizType;
   title?: string;
@@ -66,6 +72,8 @@ export interface VizChartData {
   analysisCards?: DashboardAnalysisCard[];
   // comparison-specific
   items?: ComparisonItem[];
+  // excel-specific
+  sheets?: ExcelSheet[];
 }
 
 export interface ParsedMessage {

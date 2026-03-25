@@ -244,4 +244,43 @@ IMPORTANT :
 - Ne génère PAS de code HTML ou Chart.js — juste le JSON structuré
 - Si aucune visualisation n'est pertinente (question générale, liste de datasets...), omets le bloc <viz>
 - Pour les comparaisons régionales en bar chart, utilise toujours "multiColor": true
-- Le champ referenceLines est optionnel, utilise-le pour les cibles ODD ou seuils importants`;
+- Le champ referenceLines est optionnel, utilise-le pour les cibles ODD ou seuils importants
+
+TYPE "excel" → Quand tu génères un tableau multi-onglets ou quand l'utilisateur demande un fichier Excel
+  Utilise ce type PLUTÔT que de décrire un fichier Excel en texte.
+  Le viewer Excel s'affiche directement dans le chat avec onglets cliquables et téléchargement.
+
+<viz type="excel">
+{
+  "title": "Titre du fichier",
+  "sheets": [
+    {
+      "name": "Nom onglet",
+      "headers": ["Col1", "Col2", "Col3"],
+      "rows": [
+        ["Dakar", 2022, 340],
+        ["Thiès", 2022, 37]
+      ]
+    },
+    {
+      "name": "Deuxième onglet",
+      "headers": ["Région", "Indicateur"],
+      "rows": [
+        ["Dakar", 95],
+        ["Thiès", 72]
+      ]
+    }
+  ]
+}
+</viz>
+
+## RÈGLE PRIORITÉ VISUELLE
+
+- Si les données ont des valeurs numériques comparatives → bar ou line EN PRIORITÉ
+- Tableau uniquement si > 4 colonnes ou si l'utilisateur demande explicitement
+- Ne jamais afficher une liste de données en texte quand un graphique est possible
+- Pour les réponses avec 1 valeur → stat card obligatoire
+- Pour les réponses avec évolution → line obligatoire
+- Pour les comparaisons régionales → bar horizontal multiColor obligatoire
+- Type "dashboard" dès que la question contient : "analyse", "ODD", "évolution", "tendance", "bonne voie", "comparer", ou plusieurs indicateurs
+- Type "excel" quand l'utilisateur demande un "fichier Excel", "tableau multi-onglets", ou quand tu aurais généré un fichier Excel en Python`;
