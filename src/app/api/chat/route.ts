@@ -144,9 +144,18 @@ export async function POST(request: NextRequest) {
 
     // Stream response with tool use loop
     const encoder = new TextEncoder();
+
+    // Helper: send SSE event and flush immediately
+    function sendEvent(controller: ReadableStreamDefaultController, data: string) {
+      controller.enqueue(encoder.encode(data));
+    }
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Send SSE comment to force stream open (prevents buffering)
+          sendEvent(controller, ": connected\n\n");
+
           let currentMessages = [...openaiMessages];
           let iterationCount = 0;
           const MAX_ITERATIONS = 10;
@@ -155,6 +164,11 @@ export async function POST(request: NextRequest) {
           // Phase 1: Non-streaming tool use loop
           while (hasToolCalls && iterationCount < MAX_ITERATIONS) {
             iterationCount++;
+
+            // Send status event so client knows LLM is thinking
+            if (iterationCount === 1) {
+              sendEvent(controller, `data: ${JSON.stringify({ type: "status", status: "thinking" })}\n\n`);
+            }
 
             const response = await client.chat.completions.create({
               model: OPENROUTER_MODEL,
@@ -185,22 +199,20 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Send tool_use event with args
-                const statusEvent = `data: ${JSON.stringify({
+                sendEvent(controller, `data: ${JSON.stringify({
                   type: "tool_use",
                   tool: toolName,
                   args: JSON.stringify(args),
-                })}\n\n`;
-                controller.enqueue(encoder.encode(statusEvent));
+                })}\n\n`);
 
                 const toolResult = await callMCPTool(toolName, args);
 
                 // Send tool_result event
-                const resultEvent = `data: ${JSON.stringify({
+                sendEvent(controller, `data: ${JSON.stringify({
                   type: "tool_result",
                   tool: toolName,
                   result: toolResult.length > 500 ? toolResult.slice(0, 500) + "…" : toolResult,
-                })}\n\n`;
-                controller.enqueue(encoder.encode(resultEvent));
+                })}\n\n`);
 
                 currentMessages.push({
                   role: "tool",
@@ -213,11 +225,10 @@ export async function POST(request: NextRequest) {
               // If the non-streaming response already has text and no tools were ever used,
               // send it directly (avoids redundant API call)
               if (iterationCount === 1 && message.content) {
-                const textEvent = `data: ${JSON.stringify({
+                sendEvent(controller, `data: ${JSON.stringify({
                   type: "text",
                   content: message.content,
-                })}\n\n`;
-                controller.enqueue(encoder.encode(textEvent));
+                })}\n\n`);
               }
             }
           }
@@ -235,25 +246,23 @@ export async function POST(request: NextRequest) {
             for await (const chunk of streamResponse) {
               const delta = chunk.choices?.[0]?.delta;
               if (delta?.content) {
-                const textEvent = `data: ${JSON.stringify({
+                sendEvent(controller, `data: ${JSON.stringify({
                   type: "text",
                   content: delta.content,
-                })}\n\n`;
-                controller.enqueue(encoder.encode(textEvent));
+                })}\n\n`);
               }
             }
           }
 
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          sendEvent(controller, "data: [DONE]\n\n");
           controller.close();
         } catch (error) {
           console.error("Stream error:", error);
-          const errorEvent = `data: ${JSON.stringify({
+          sendEvent(controller, `data: ${JSON.stringify({
             type: "error",
             content: "Erreur lors du traitement de votre demande. Veuillez réessayer.",
-          })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          })}\n\n`);
+          sendEvent(controller, "data: [DONE]\n\n");
           controller.close();
         }
       },

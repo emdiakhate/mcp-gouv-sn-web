@@ -157,12 +157,15 @@ function HomeInner() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
+          // Skip SSE comments and empty lines
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6);
           if (data === "[DONE]") continue;
 
           try {
             const event = JSON.parse(data);
+            // Skip status events (heartbeat/thinking)
+            if (event.type === "status") continue;
             if (event.type === "tool_use") {
               const label = TOOL_LABELS[event.tool] || event.tool;
               setMcpCalls((prev) => {
