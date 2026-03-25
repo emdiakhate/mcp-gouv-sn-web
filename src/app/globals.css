@@ -152,6 +152,32 @@ body {
   animation: mcp-spin 2s linear infinite;
 }
 
+/* ─── Resizable panel handle ─── */
+.resize-handle,
+[data-separator] {
+  width: 4px;
+  background: var(--border);
+  position: relative;
+  transition: background 0.15s;
+}
+.resize-handle:hover,
+[data-separator]:hover,
+[data-separator][data-active] {
+  background: var(--accent);
+}
+.resize-handle::after,
+[data-separator]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 32px;
+  border-radius: 2px;
+  background: inherit;
+}
+
 @keyframes slideIn {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
