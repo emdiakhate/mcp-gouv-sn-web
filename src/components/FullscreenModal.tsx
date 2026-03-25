@@ -34,8 +34,8 @@ export default function FullscreenModal({ children, onClose, title }: Fullscreen
       }}
     >
       <div
-        className="relative w-[95vw] max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl p-6"
-        style={{ backgroundColor: "var(--background)", border: "1px solid var(--border)" }}
+        className="relative overflow-y-auto rounded-2xl shadow-2xl p-6"
+        style={{ backgroundColor: "var(--background)", border: "1px solid var(--border)", width: "70vw", maxWidth: "800px", maxHeight: "75vh" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

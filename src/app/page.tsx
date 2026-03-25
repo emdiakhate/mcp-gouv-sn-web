@@ -5,14 +5,14 @@ import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
 import ExampleCards from "@/components/ExampleCards";
 import ChatInput from "@/components/ChatInput";
-import ChatMessages, { type Message, type ToolCall } from "@/components/ChatMessages";
+import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
 
 const TOOL_LABELS: Record<string, string> = {
-  list_themes: "Exploration des thèmes disponibles",
-  search_datasets: "Recherche de datasets",
-  get_dataset_info: "Récupération des informations du dataset",
-  list_dataset_dimensions: "Chargement des dimensions",
-  query_dataset_data: "Interrogation des données",
+  list_themes: "List themes",
+  search_datasets: "Search datasets",
+  get_dataset_info: "Get dataset info",
+  list_dataset_dimensions: "List dimensions",
+  query_dataset_data: "Query data",
 };
 
 interface Conversation {
@@ -25,9 +25,10 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [toolStatus, setToolStatus] = useState<string | null>(null);
-  const [toolHistory, setToolHistory] = useState<ToolCall[]>([]);
+  const [mcpCalls, setMcpCalls] = useState<MCPCall[]>([]);
+  const [streamingText, setStreamingText] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -81,6 +82,10 @@ export default function Home() {
     return id;
   };
 
+  const handleStop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
   const handleSend = async (text: string) => {
     let convId = activeConvId;
     if (!convId) {
@@ -100,8 +105,12 @@ export default function Home() {
     );
 
     setIsLoading(true);
-    setToolStatus(null);
-    setToolHistory([]);
+    setMcpCalls([]);
+    setStreamingText("");
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    let fullText = "";
 
     try {
       const currentConv = conversations.find((c) => c.id === convId);
@@ -118,6 +127,7 @@ export default function Home() {
             content: m.content,
           })),
         }),
+        signal: abortController.signal,
       });
 
       if (!res.ok) {
@@ -131,7 +141,6 @@ export default function Home() {
       if (!reader) throw new Error("No response body");
 
       const decoder = new TextDecoder();
-      let fullText = "";
       let buffer = "";
 
       while (true) {
@@ -151,18 +160,26 @@ export default function Home() {
             const event = JSON.parse(data);
             if (event.type === "tool_use") {
               const label = TOOL_LABELS[event.tool] || event.tool;
-              // Mark previous active tool as done, add new one
-              setToolHistory((prev) => {
+              setMcpCalls((prev) => {
                 const updated = prev.map((t) =>
-                  t.done ? t : { ...t, done: true }
+                  t.status === "running" ? { ...t, status: "done" as const } : t
                 );
-                return [...updated, { name: label, args: event.args, done: false }];
+                return [...updated, { tool: event.tool, label, status: "running" as const, input: event.args }];
               });
-              setToolStatus(label);
+            } else if (event.type === "tool_result") {
+              setMcpCalls((prev) =>
+                prev.map((t) =>
+                  t.tool === event.tool && t.status === "running"
+                    ? { ...t, status: "done" as const, output: event.result }
+                    : t
+                )
+              );
             } else if (event.type === "text") {
               fullText += event.content;
+              setStreamingText(fullText);
             } else if (event.type === "error") {
               fullText = event.content;
+              setStreamingText(fullText);
             }
           } catch {
             // Skip malformed events
@@ -170,7 +187,7 @@ export default function Home() {
         }
       }
 
-      // Strip XML tool call artifacts that some models inject into text
+      // Strip XML tool call artifacts
       const cleanText = fullText
         .replace(/<ansd_mcp>[\s\S]*?<\/ansd_mcp>/g, "")
         .replace(/<ansd_\w+>[\s\S]*?<\/ansd_\w+>/g, "")
@@ -200,25 +217,46 @@ export default function Home() {
         )
       );
     } catch (error) {
-      const detail =
-        error instanceof Error ? error.message : "";
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content:
-          detail ||
-          "Erreur de connexion au serveur. Vérifiez que le serveur est en ligne et que la clé API est configurée.",
-      };
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === convId
-            ? { ...c, messages: [...c.messages, errorMsg] }
-            : c
-        )
-      );
+      if (error instanceof DOMException && error.name === "AbortError") {
+        // User stopped — save partial text
+        const partialText = fullText || "";
+        if (partialText) {
+          const partialMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: partialText + "\n\n*[Réponse interrompue]*",
+          };
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === convId
+                ? { ...c, messages: [...c.messages, partialMsg] }
+                : c
+            )
+          );
+        }
+      } else {
+        const detail =
+          error instanceof Error ? error.message : "";
+        const errorMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content:
+            detail ||
+            "Erreur de connexion au serveur. Vérifiez que le serveur est en ligne et que la clé API est configurée.",
+        };
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === convId
+              ? { ...c, messages: [...c.messages, errorMsg] }
+              : c
+          )
+        );
+      }
     } finally {
       setIsLoading(false);
-      setToolStatus(null);
+      setStreamingText("");
+      setMcpCalls([]);
+      abortControllerRef.current = null;
     }
   };
 
@@ -270,7 +308,7 @@ export default function Home() {
             </div>
 
             <div className="w-full max-w-2xl mb-6">
-              <ChatInput onSend={handleSend} disabled={isLoading} />
+              <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
             </div>
 
             <ExampleCards onSelect={handleSend} />
@@ -278,12 +316,12 @@ export default function Home() {
         ) : (
           <>
             <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-              <ChatMessages messages={messages} isLoading={isLoading} toolStatus={toolStatus} toolHistory={toolHistory} />
+              <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
               <div ref={messagesEndRef} />
             </div>
             <div className="px-4 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
-                <ChatInput onSend={handleSend} disabled={isLoading} />
+                <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
                 <p
                   className="text-xs text-center mt-1"
                   style={{ color: "var(--muted)" }}

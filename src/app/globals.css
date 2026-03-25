@@ -63,15 +63,19 @@ body {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+.message-content {
+  font-size: 15px;
+  line-height: 1.7;
+}
 .message-content p {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 .message-content p:last-child {
   margin-bottom: 0;
 }
 .message-content ul, .message-content ol {
   margin-left: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 .message-content li {
   margin-bottom: 0.25rem;
@@ -80,14 +84,14 @@ body {
   background: var(--chip-bg);
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
-  font-size: 0.875rem;
+  font-size: 13px;
 }
 .message-content pre {
   background: var(--surface);
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 .message-content pre code {
   background: transparent;
@@ -98,7 +102,7 @@ body {
   border-collapse: collapse;
   width: 100%;
   margin-bottom: 0.75rem;
-  font-size: 0.8125rem;
+  font-size: 13px;
 }
 .message-content th,
 .message-content td {
@@ -120,9 +124,9 @@ body {
   margin-top: 1rem;
   margin-bottom: 0.5rem;
 }
-.message-content h1 { font-size: 1.25rem; }
-.message-content h2 { font-size: 1.125rem; }
-.message-content h3 { font-size: 1rem; }
+.message-content h1 { font-size: 20px; }
+.message-content h2 { font-size: 17px; }
+.message-content h3 { font-size: 15px; }
 .message-content strong {
   font-weight: 600;
 }
@@ -138,4 +142,12 @@ body {
 .typing-cursor::after {
   content: "\25CB";
   animation: blink 1s step-end infinite;
+}
+
+@keyframes mcp-spin {
+  to { transform: rotate(360deg); }
+}
+.mcp-spin {
+  display: inline-block;
+  animation: mcp-spin 2s linear infinite;
 }

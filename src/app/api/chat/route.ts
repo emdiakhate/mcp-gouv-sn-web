@@ -150,8 +150,10 @@ export async function POST(request: NextRequest) {
           let currentMessages = [...openaiMessages];
           let iterationCount = 0;
           const MAX_ITERATIONS = 10;
+          let hasToolCalls = true;
 
-          while (iterationCount < MAX_ITERATIONS) {
+          // Phase 1: Non-streaming tool use loop
+          while (hasToolCalls && iterationCount < MAX_ITERATIONS) {
             iterationCount++;
 
             const response = await client.chat.completions.create({
@@ -171,19 +173,10 @@ export async function POST(request: NextRequest) {
               // Add assistant message with tool calls to history
               currentMessages.push(message);
 
-              // Execute each tool call
               for (const toolCall of toolCalls) {
                 if (toolCall.type !== "function") continue;
                 const toolName = toolCall.function.name;
 
-                // Send status update
-                const statusEvent = `data: ${JSON.stringify({
-                  type: "tool_use",
-                  tool: toolName,
-                })}\n\n`;
-                controller.enqueue(encoder.encode(statusEvent));
-
-                // Parse arguments and call MCP tool
                 let args: Record<string, unknown> = {};
                 try {
                   args = JSON.parse(toolCall.function.arguments);
@@ -191,30 +184,64 @@ export async function POST(request: NextRequest) {
                   // empty args if parsing fails
                 }
 
+                // Send tool_use event with args
+                const statusEvent = `data: ${JSON.stringify({
+                  type: "tool_use",
+                  tool: toolName,
+                  args: JSON.stringify(args),
+                })}\n\n`;
+                controller.enqueue(encoder.encode(statusEvent));
+
                 const toolResult = await callMCPTool(toolName, args);
 
-                // Add tool result to messages
+                // Send tool_result event
+                const resultEvent = `data: ${JSON.stringify({
+                  type: "tool_result",
+                  tool: toolName,
+                  result: toolResult.length > 500 ? toolResult.slice(0, 500) + "…" : toolResult,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(resultEvent));
+
                 currentMessages.push({
                   role: "tool",
                   tool_call_id: toolCall.id,
                   content: toolResult,
                 });
               }
-
-              // Continue loop so the model can process tool results
-              continue;
+            } else {
+              hasToolCalls = false;
+              // If the non-streaming response already has text and no tools were ever used,
+              // send it directly (avoids redundant API call)
+              if (iterationCount === 1 && message.content) {
+                const textEvent = `data: ${JSON.stringify({
+                  type: "text",
+                  content: message.content,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(textEvent));
+              }
             }
+          }
 
-            // No tool calls - send final text
-            if (message.content) {
-              const textEvent = `data: ${JSON.stringify({
-                type: "text",
-                content: message.content,
-              })}\n\n`;
-              controller.enqueue(encoder.encode(textEvent));
+          // Phase 2: If tools were used, stream the final LLM response token by token
+          if (iterationCount > 1 || (iterationCount === 1 && hasToolCalls)) {
+            const streamResponse = await client.chat.completions.create({
+              model: OPENROUTER_MODEL,
+              max_tokens: 4096,
+              tools,
+              messages: currentMessages,
+              stream: true,
+            });
+
+            for await (const chunk of streamResponse) {
+              const delta = chunk.choices?.[0]?.delta;
+              if (delta?.content) {
+                const textEvent = `data: ${JSON.stringify({
+                  type: "text",
+                  content: delta.content,
+                })}\n\n`;
+                controller.enqueue(encoder.encode(textEvent));
+              }
             }
-
-            break;
           }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
