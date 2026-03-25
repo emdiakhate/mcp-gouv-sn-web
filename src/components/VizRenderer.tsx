@@ -18,7 +18,8 @@ import type { VizChartData } from "@/utils/parseViz";
 import { DATASET_COLORS, REGION_COLORS, withAlpha } from "@/constants/colors";
 import { exportVizToExcel, copyVizData } from "@/utils/exportExcel";
 import FullscreenModal from "./FullscreenModal";
-import ExcelViewer from "./ExcelViewer";
+import ExcelCard from "./ExcelCard";
+import { useArtifact } from "@/contexts/ArtifactContext";
 
 ChartJS.register(
   CategoryScale,
@@ -76,8 +77,9 @@ const AXIS_TICKS = { color: W.axisColor, font: { size: 11 } };
 function VizCard({ children, viz }: { children: React.ReactNode; viz: VizChartData }) {
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const { openArtifact } = useArtifact();
   const showExport = ["bar", "line", "grouped-bar", "table", "excel"].includes(viz.type);
-  const showExpand = ["bar", "line", "pie", "grouped-bar", "table"].includes(viz.type);
+  const canExpand = ["bar", "line", "pie", "grouped-bar", "table", "stat", "dashboard", "comparison"].includes(viz.type);
 
   const handleCopy = async () => {
     const text = copyVizData(viz);
@@ -86,11 +88,28 @@ function VizCard({ children, viz }: { children: React.ReactNode; viz: VizChartDa
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleExpand = () => {
+    openArtifact({ kind: "viz", viz });
+  };
+
   return (
     <>
       <div
-        className="my-3 overflow-hidden"
-        style={{ background: W.bg, border: W.border, borderRadius: W.radius, padding: "16px" }}
+        className="my-3 overflow-hidden group/viz"
+        style={{
+          background: W.bg, border: W.border, borderRadius: W.radius, padding: "16px",
+          cursor: canExpand ? "zoom-in" : undefined,
+          transition: "border-color 0.15s, box-shadow 0.15s",
+        }}
+        onClick={canExpand ? handleExpand : undefined}
+        onMouseEnter={canExpand ? (e) => {
+          e.currentTarget.style.borderColor = "#0F6E56";
+          e.currentTarget.style.boxShadow = "0 0 0 1px rgba(15,110,86,0.1)";
+        } : undefined}
+        onMouseLeave={canExpand ? (e) => {
+          e.currentTarget.style.borderColor = "#E8E8E8";
+          e.currentTarget.style.boxShadow = "none";
+        } : undefined}
       >
         {/* Header */}
         {(viz.title || viz.subtitle) && (
@@ -107,20 +126,13 @@ function VizCard({ children, viz }: { children: React.ReactNode; viz: VizChartDa
                 </p>
               )}
             </div>
-            {showExpand && (
-              <button
-                onClick={() => setFullscreen(true)}
-                className="p-1.5 rounded-lg cursor-pointer hover:opacity-80 flex-shrink-0"
-                style={{ backgroundColor: "#f5f5f5", border: "1px solid #E8E8E8" }}
-                title="Agrandir"
+            {canExpand && (
+              <span
+                className="flex items-center gap-1 opacity-0 group-hover/viz:opacity-100 flex-shrink-0"
+                style={{ fontSize: "10px", color: "#0F6E56", transition: "opacity 0.15s", pointerEvents: "none" }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 3 21 3 21 9" />
-                  <polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" />
-                  <line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-              </button>
+                cliquer pour agrandir
+              </span>
             )}
           </div>
         )}
@@ -140,7 +152,7 @@ function VizCard({ children, viz }: { children: React.ReactNode; viz: VizChartDa
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: "0.5px solid #E8E8E8" }}>
+        <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: "0.5px solid #E8E8E8" }} onClick={(e) => e.stopPropagation()}>
           <button
             onClick={handleCopy}
             className="flex items-center gap-1 rounded px-2 py-1 cursor-pointer hover:opacity-80"
@@ -166,9 +178,9 @@ function VizCard({ children, viz }: { children: React.ReactNode; viz: VizChartDa
               Excel
             </button>
           )}
-          {showExpand && (
+          {canExpand && (
             <button
-              onClick={() => setFullscreen(true)}
+              onClick={handleExpand}
               className="flex items-center gap-1 rounded px-2 py-1 cursor-pointer hover:opacity-80 ml-auto"
               style={{ backgroundColor: "#f5f5f5", color: "#555", fontSize: "12px", border: "0.5px solid #E8E8E8" }}
             >
@@ -694,15 +706,9 @@ function ComparisonViz({ viz }: { viz: VizChartData }) {
   );
 }
 
-/* ─── Excel viewer ─── */
+/* ─── Excel card (compact, opens in artifact panel) ─── */
 function ExcelViz({ viz }: { viz: VizChartData }) {
-  if (!viz.sheets || viz.sheets.length === 0) return null;
-  return (
-    <div className="my-3 overflow-hidden" style={{ background: W.bg, border: W.border, borderRadius: W.radius, padding: "16px" }}>
-      {viz.title && <h3 style={{ fontSize: W.titleSize, fontWeight: 500, color: W.titleColor, margin: "0 0 12px" }}>{viz.title}</h3>}
-      <ExcelViewer data={{ title: viz.title || "Export", sheets: viz.sheets }} />
-    </div>
-  );
+  return <ExcelCard viz={viz} />;
 }
 
 /* ─── Main renderer ─── */

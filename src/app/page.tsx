@@ -6,6 +6,8 @@ import SenegalFlag from "@/components/SenegalFlag";
 import ExampleCards from "@/components/ExampleCards";
 import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
+import ArtifactPanel from "@/components/ArtifactPanel";
+import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
 
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
@@ -21,7 +23,7 @@ interface Conversation {
   messages: Message[];
 }
 
-export default function Home() {
+function HomeInner() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +34,8 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+
+  const { isOpen: artifactOpen } = useArtifact();
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages || [];
@@ -277,62 +281,87 @@ export default function Home() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header
-          className="flex items-center justify-center px-4 py-3 border-b"
-          style={{ borderColor: "var(--border)" }}
+      {/* Main content area — splits when artifact panel is open */}
+      <div className="flex-1 flex min-w-0">
+        {/* Chat column */}
+        <main
+          className="flex flex-col min-w-0 transition-all duration-300"
+          style={{ flex: artifactOpen ? "0 0 50%" : "1 1 100%" }}
         >
-          <div className="flex items-center gap-2">
-            <SenegalFlag size={20} />
-            <span className="text-sm font-medium">Portail MCP Sénégal</span>
-          </div>
-        </header>
-
-        {/* Welcome screen or chat */}
-        {isWelcomeScreen ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4">
-            <div className="mb-8 text-center">
-              <div className="flex justify-center mb-4">
-                <SenegalFlag size={56} />
-              </div>
-              <h1
-                className="text-3xl font-semibold mb-2"
-                style={{ color: "var(--foreground)" }}
-              >
-                Bienvenue sur le portail mcp-gouv-sn
-              </h1>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                Explorez les données ouvertes du Sénégal
-              </p>
+          {/* Top bar */}
+          <header
+            className="flex items-center justify-center px-4 py-3 border-b"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <div className="flex items-center gap-2">
+              <SenegalFlag size={20} />
+              <span className="text-sm font-medium">Portail MCP Sénégal</span>
             </div>
+          </header>
 
-            <div className="w-full max-w-2xl mb-6">
-              <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-            </div>
-
-            <ExampleCards onSelect={handleSend} />
-          </div>
-        ) : (
-          <>
-            <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-              <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
-              <div ref={messagesEndRef} />
-            </div>
-            <div className="px-4 pb-4 pt-2">
-              <div className="max-w-3xl mx-auto">
-                <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-                <p
-                  className="text-xs text-center mt-1"
-                  style={{ color: "var(--muted)" }}
+          {/* Welcome screen or chat */}
+          {isWelcomeScreen ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4">
+              <div className="mb-8 text-center">
+                <div className="flex justify-center mb-4">
+                  <SenegalFlag size={56} />
+                </div>
+                <h1
+                  className="text-3xl font-semibold mb-2"
+                  style={{ color: "var(--foreground)" }}
                 >
-                  &copy; YNNOVIA
+                  Bienvenue sur le portail mcp-gouv-sn
+                </h1>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  Explorez les données ouvertes du Sénégal
                 </p>
               </div>
+
+              <div className="w-full max-w-2xl mb-6">
+                <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
+              </div>
+
+              <ExampleCards onSelect={handleSend} />
             </div>
-          </>
+          ) : (
+            <>
+              <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+                <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
+                <div ref={messagesEndRef} />
+              </div>
+              <div className="px-4 pb-4 pt-2">
+                <div className="max-w-3xl mx-auto">
+                  <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
+                  <p
+                    className="text-xs text-center mt-1"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    &copy; YNNOVIA
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+
+        {/* Artifact panel — slides in from right */}
+        {artifactOpen && (
+          <div
+            className="min-w-0"
+            style={{ flex: "0 0 50%" }}
+          >
+            <ArtifactPanel />
+          </div>
         )}
-      </main>
+      </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ArtifactProvider>
+      <HomeInner />
+    </ArtifactProvider>
   );
 }
