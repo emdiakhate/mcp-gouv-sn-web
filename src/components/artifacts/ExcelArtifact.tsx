@@ -1,12 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import type { VizChartData } from "@/utils/parseViz";
 
+/* Tab colors for different sheets */
+const TAB_COLORS = [
+  { active: "#0F6E56", light: "#E1F5EE" },
+  { active: "#378ADD", light: "#E8F2FD" },
+  { active: "#7F77DD", light: "#EEEDF9" },
+  { active: "#D85A30", light: "#FDEEE8" },
+  { active: "#BA7517", light: "#FAF0E0" },
+  { active: "#D4537E", light: "#FAEDF2" },
+];
+
+/**
+ * Resolve Excel formula strings to computed values.
+ * If a cell looks like "=SUM(...)" or "=A1+B1", return the raw string as-is
+ * since we can't evaluate it client-side — but mark it visually.
+ */
+function resolveCell(cell: string | number | null): { value: string; isFormula: boolean } {
+  if (cell === null || cell === undefined) return { value: "\u2014", isFormula: false };
+  if (typeof cell === "number") return { value: cell.toLocaleString("fr-FR"), isFormula: false };
+  const s = String(cell);
+  if (s.startsWith("=")) {
+    // Try to parse simple formulas
+    return { value: s, isFormula: true };
+  }
+  return { value: s, isFormula: false };
+}
+
 /**
  * Full Excel artifact for the split panel.
- * Excel-style grid with row numbers, green ANSD headers, total row highlighting.
+ * Excel-style grid with row numbers, colored sheet tabs, total row highlighting.
  */
 export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
   const sheets = viz.sheets;
@@ -15,6 +41,23 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
   if (!sheets || sheets.length === 0) return null;
   const sheet = sheets[activeSheet];
   if (!sheet) return null;
+
+  const tabColor = TAB_COLORS[activeSheet % TAB_COLORS.length];
+
+  // Process sheet data: evaluate formulas where possible using SheetJS
+  const processedRows = useMemo(() => {
+    if (!sheet) return [];
+    // Build a SheetJS worksheet from headers + rows, then read back computed values
+    try {
+      const aoa = [sheet.headers, ...sheet.rows];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const json = XLSX.utils.sheet_to_json<(string | number | null)[]>(ws, { header: 1, raw: true });
+      // Skip header row
+      return json.slice(1);
+    } catch {
+      return sheet.rows;
+    }
+  }, [sheet]);
 
   const handleDownload = () => {
     const wb = XLSX.utils.book_new();
@@ -25,10 +68,10 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
     XLSX.writeFile(wb, `${viz.title || "Export"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Detect "total" rows (last row or rows containing "total" in first cell)
+  // Detect "total" rows
   const isTotalRow = (row: (string | number | null)[], idx: number) => {
     const firstCell = String(row[0] || "").toLowerCase();
-    return firstCell.includes("total") || (idx === sheet.rows.length - 1 && sheet.rows.length > 3);
+    return firstCell.includes("total") || (idx === processedRows.length - 1 && processedRows.length > 3);
   };
 
   return (
@@ -38,7 +81,7 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
         <div>
           {viz.title && <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#1a1a1a", margin: 0 }}>{viz.title}</h2>}
           <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>
-            {sheet.rows.length} lignes · {sheet.headers.length} colonnes
+            {processedRows.length} lignes · {sheet.headers.length} colonnes
           </p>
         </div>
         <button
@@ -55,28 +98,33 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
         </button>
       </div>
 
-      {/* Sheet tabs */}
+      {/* Sheet tabs — different color per tab */}
       {sheets.length > 1 && (
-        <div className="flex gap-0" style={{ borderBottom: "1px solid #E8E8E8", backgroundColor: "#FAFAFA" }}>
-          {sheets.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveSheet(i)}
-              className="cursor-pointer"
-              style={{
-                padding: "8px 16px",
-                fontSize: "12px",
-                fontWeight: i === activeSheet ? 600 : 400,
-                color: i === activeSheet ? "#0F6E56" : "#666",
-                background: i === activeSheet ? "#fff" : "transparent",
-                borderBottom: i === activeSheet ? "2px solid #0F6E56" : "2px solid transparent",
-                border: "none",
-                borderLeft: i > 0 ? "1px solid #E8E8E8" : "none",
-              }}
-            >
-              {s.name}
-            </button>
-          ))}
+        <div className="flex" style={{ borderBottom: "1px solid #E8E8E8", backgroundColor: "#FAFAFA" }}>
+          {sheets.map((s, i) => {
+            const tc = TAB_COLORS[i % TAB_COLORS.length];
+            const isActive = i === activeSheet;
+            return (
+              <button
+                key={i}
+                onClick={() => setActiveSheet(i)}
+                className="cursor-pointer"
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "12px",
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? tc.active : "#666",
+                  background: isActive ? tc.light : "transparent",
+                  borderTop: "none",
+                  borderRight: "none",
+                  borderLeft: i > 0 ? "1px solid #E8E8E8" : "none",
+                  borderBottom: isActive ? `2px solid ${tc.active}` : "2px solid transparent",
+                }}
+              >
+                {s.name}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -89,16 +137,19 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
               <th style={{
                 backgroundColor: "#E8E8E8", color: "#888", padding: "8px 10px",
                 textAlign: "center", fontWeight: 500, width: "40px", minWidth: "40px",
-                borderRight: "1px solid #D0D0D0", borderBottom: "2px solid #0F6E56",
+                borderRight: "1px solid #D0D0D0", borderBottom: `2px solid ${tabColor.active}`,
+                borderTop: "none", borderLeft: "none",
                 fontSize: "11px",
               }}>
                 #
               </th>
               {sheet.headers.map((h, i) => (
                 <th key={i} style={{
-                  backgroundColor: "#0F6E56", color: "#fff",
+                  backgroundColor: tabColor.active, color: "#fff",
                   padding: "8px 14px", textAlign: "left", fontWeight: 500,
-                  whiteSpace: "nowrap", borderBottom: "2px solid #0A5A45",
+                  whiteSpace: "nowrap",
+                  borderTop: "none", borderLeft: "none",
+                  borderBottom: `2px solid ${tabColor.active}`,
                   borderRight: i < sheet.headers.length - 1 ? "1px solid rgba(255,255,255,0.15)" : "none",
                 }}>
                   {h}
@@ -107,36 +158,50 @@ export default function ExcelArtifact({ viz }: { viz: VizChartData }) {
             </tr>
           </thead>
           <tbody>
-            {sheet.rows.map((row, ri) => {
+            {processedRows.map((row, ri) => {
               const isTotal = isTotalRow(row, ri);
               return (
                 <tr
                   key={ri}
                   style={{
-                    backgroundColor: isTotal ? "#E1F5EE" : ri % 2 === 0 ? "#fff" : "#FAFBFA",
+                    backgroundColor: isTotal ? tabColor.light : ri % 2 === 0 ? "#fff" : "#FAFBFA",
                   }}
                 >
                   {/* Row number */}
                   <td style={{
                     backgroundColor: "#F5F5F5", color: "#999", padding: "7px 10px",
-                    textAlign: "center", fontSize: "11px", borderRight: "1px solid #E8E8E8",
-                    borderBottom: "0.5px solid #eee", fontVariantNumeric: "tabular-nums",
+                    textAlign: "center", fontSize: "11px",
+                    borderTop: "none", borderLeft: "none",
+                    borderRight: "1px solid #E8E8E8",
+                    borderBottom: "0.5px solid #eee",
+                    fontVariantNumeric: "tabular-nums",
                   }}>
                     {ri + 1}
                   </td>
-                  {row.map((cell, ci) => (
-                    <td key={ci} style={{
-                      padding: "7px 14px",
-                      borderBottom: "0.5px solid #eee",
-                      borderRight: ci < row.length - 1 ? "0.5px solid #f0f0f0" : "none",
-                      color: typeof cell === "number" ? "#0F6E56" : "#333",
-                      fontWeight: isTotal ? 600 : ci === 0 ? 500 : 400,
-                      whiteSpace: "nowrap",
-                      fontVariantNumeric: typeof cell === "number" ? "tabular-nums" : undefined,
-                    }}>
-                      {typeof cell === "number" ? cell.toLocaleString("fr-FR") : cell ?? "\u2014"}
-                    </td>
-                  ))}
+                  {(row as (string | number | null)[]).map((cell, ci) => {
+                    const resolved = resolveCell(cell);
+                    return (
+                      <td key={ci} style={{
+                        padding: "7px 14px",
+                        borderTop: "none", borderLeft: "none",
+                        borderBottom: "0.5px solid #eee",
+                        borderRight: ci < (row as (string | number | null)[]).length - 1 ? "0.5px solid #f0f0f0" : "none",
+                        color: resolved.isFormula ? "#BA7517" : typeof cell === "number" ? tabColor.active : "#333",
+                        fontWeight: isTotal ? 600 : ci === 0 ? 500 : 400,
+                        whiteSpace: "nowrap",
+                        fontVariantNumeric: typeof cell === "number" ? "tabular-nums" : undefined,
+                        fontStyle: resolved.isFormula ? "italic" : undefined,
+                        fontSize: resolved.isFormula ? "12px" : undefined,
+                      }}>
+                        {resolved.isFormula ? (
+                          <span title={resolved.value} style={{ cursor: "help" }}>
+                            <span style={{ opacity: 0.5, marginRight: "2px" }}>fx</span>
+                            {resolved.value}
+                          </span>
+                        ) : resolved.value}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
