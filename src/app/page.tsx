@@ -8,7 +8,6 @@ import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
 import ArtifactPanel from "@/components/ArtifactPanel";
 import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
-import { Group as PanelGroup, Panel, Separator as ResizeHandle } from "react-resizable-panels";
 
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
@@ -24,6 +23,21 @@ interface Conversation {
   messages: Message[];
 }
 
+/* ─── Persist split ratio in localStorage ─── */
+const STORAGE_KEY = "mcp-split-ratio";
+function loadSplitRatio(): number {
+  if (typeof window === "undefined") return 50;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const n = parseFloat(saved);
+    if (n >= 25 && n <= 75) return n;
+  }
+  return 50;
+}
+function saveSplitRatio(ratio: number) {
+  localStorage.setItem(STORAGE_KEY, String(ratio));
+}
+
 function HomeInner() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -37,6 +51,55 @@ function HomeInner() {
   const isNearBottomRef = useRef(true);
 
   const { isOpen: artifactOpen } = useArtifact();
+
+  // Resizable split state
+  const [splitRatio, setSplitRatio] = useState(50);
+  const isDraggingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load saved ratio on mount
+  useEffect(() => {
+    setSplitRatio(loadSplitRatio());
+  }, []);
+
+  // Drag handlers for resize
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const pct = (x / rect.width) * 100;
+      const clamped = Math.min(75, Math.max(25, pct));
+      setSplitRatio(clamped);
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        // Save on release
+        setSplitRatio((current) => {
+          saveSplitRatio(current);
+          return current;
+        });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const messages = activeConv?.messages || [];
@@ -286,77 +349,83 @@ function HomeInner() {
       />
 
       {/* Main content area — resizable split when artifact panel is open */}
-      <PanelGroup orientation="horizontal" className="flex-1 min-w-0">
+      <div ref={containerRef} className="flex-1 flex min-w-0">
         {/* Chat column */}
-        <Panel id="chat" minSize="30%" defaultSize="50%">
-          <main className="flex flex-col h-full min-w-0">
-            {/* Top bar */}
-            <header
-              className="flex items-center justify-center px-4 py-3 border-b"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center gap-2">
-                <SenegalFlag size={20} />
-                <span className="text-sm font-medium">Portail MCP Sénégal</span>
-              </div>
-            </header>
+        <main
+          className="flex flex-col min-w-0 h-full"
+          style={{ width: artifactOpen ? `${splitRatio}%` : "100%", flexShrink: 0 }}
+        >
+          {/* Top bar */}
+          <header
+            className="flex items-center justify-center px-4 py-3 border-b"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <div className="flex items-center gap-2">
+              <SenegalFlag size={20} />
+              <span className="text-sm font-medium">Portail MCP Sénégal</span>
+            </div>
+          </header>
 
-            {/* Welcome screen or chat */}
-            {isWelcomeScreen ? (
-              <div className="flex-1 flex flex-col items-center justify-center px-4">
-                <div className="mb-8 text-center">
-                  <div className="flex justify-center mb-4">
-                    <SenegalFlag size={56} />
-                  </div>
-                  <h1
-                    className="text-3xl font-semibold mb-2"
-                    style={{ color: "var(--foreground)" }}
+          {/* Welcome screen or chat */}
+          {isWelcomeScreen ? (
+            <div className="flex-1 flex flex-col items-center justify-center px-4">
+              <div className="mb-8 text-center">
+                <div className="flex justify-center mb-4">
+                  <SenegalFlag size={56} />
+                </div>
+                <h1
+                  className="text-3xl font-semibold mb-2"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  Bienvenue sur le portail mcp-gouv-sn
+                </h1>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  Explorez les données ouvertes du Sénégal
+                </p>
+              </div>
+
+              <div className="w-full max-w-2xl mb-6">
+                <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
+              </div>
+
+              <ExampleCards onSelect={handleSend} />
+            </div>
+          ) : (
+            <>
+              <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+                <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
+                <div ref={messagesEndRef} />
+              </div>
+              <div className="px-4 pb-4 pt-2">
+                <div className="max-w-3xl mx-auto">
+                  <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
+                  <p
+                    className="text-xs text-center mt-1"
+                    style={{ color: "var(--muted)" }}
                   >
-                    Bienvenue sur le portail mcp-gouv-sn
-                  </h1>
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    Explorez les données ouvertes du Sénégal
+                    &copy; YNNOVIA
                   </p>
                 </div>
-
-                <div className="w-full max-w-2xl mb-6">
-                  <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-                </div>
-
-                <ExampleCards onSelect={handleSend} />
               </div>
-            ) : (
-              <>
-                <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-                  <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
-                  <div ref={messagesEndRef} />
-                </div>
-                <div className="px-4 pb-4 pt-2">
-                  <div className="max-w-3xl mx-auto">
-                    <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-                    <p
-                      className="text-xs text-center mt-1"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      &copy; YNNOVIA
-                    </p>
-                  </div>
-                </div>
-              </>
-            )}
-          </main>
-        </Panel>
+            </>
+          )}
+        </main>
 
         {/* Resize handle + Artifact panel */}
         {artifactOpen && (
           <>
-            <ResizeHandle className="resize-handle" />
-            <Panel id="artifact" minSize="25%" defaultSize="50%">
+            {/* Drag handle */}
+            <div
+              className="resize-handle"
+              onMouseDown={handleMouseDown}
+            />
+            {/* Artifact panel fills remaining space */}
+            <div className="flex-1 min-w-0 h-full">
               <ArtifactPanel />
-            </Panel>
+            </div>
           </>
         )}
-      </PanelGroup>
+      </div>
     </div>
   );
 }
