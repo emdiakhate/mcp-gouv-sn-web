@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
-import ExampleCards from "@/components/ExampleCards";
+import ServiceCatalog from "@/components/ServiceCatalog";
 import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
 import ArtifactPanel from "@/components/ArtifactPanel";
@@ -388,7 +388,7 @@ function HomeInner() {
                 <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
               </div>
 
-              <ExampleCards onSelect={handleSend} />
+              <ServiceCatalog onSelectPrompt={handleSend} />
             </div>
           ) : (
             <>
