@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import SenegalFlag from "./SenegalFlag";
 import VizRenderer from "./VizRenderer";
 import { parseMessageWithViz } from "@/utils/parseViz";
+import { useTypewriter } from "@/hooks/useTypewriter";
 
 /* ─── Custom markdown components (Claude.ai text sizes) ─── */
 const markdownComponents = {
@@ -230,6 +231,64 @@ function AssistantMessageText({ content }: { content: string }) {
   );
 }
 
+/* ─── Typewriter assistant message: text appears progressively, viz after completion ─── */
+function TypewriterAssistantMessage({ content }: { content: string }) {
+  const parsed = useMemo(() => parseMessageWithViz(content), [content]);
+  const { displayed, isDone } = useTypewriter(parsed.text, true, 6);
+
+  return (
+    <>
+      {/* Text bubble */}
+      <div className="relative">
+        <div
+          className="px-4 py-3"
+          style={{
+            backgroundColor: "var(--surface)",
+            borderRadius: "18px 18px 18px 4px",
+            border: "0.5px solid var(--border)",
+          }}
+        >
+          {displayed && (
+            <div className="message-content prose prose-sm max-w-none" style={{ color: "var(--foreground)" }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {displayed}
+              </ReactMarkdown>
+              {/* Blinking cursor during typewriter */}
+              {!isDone && (
+                <span
+                  className="typewriter-cursor"
+                  style={{
+                    display: "inline-block",
+                    width: "2px",
+                    height: "1em",
+                    background: "var(--accent)",
+                    marginLeft: "2px",
+                    verticalAlign: "text-bottom",
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+        {/* Copy button appears on hover, only after typewriter done */}
+        {isDone && (
+          <div className="absolute -bottom-2 right-2">
+            <CopyMessageButton content={content} />
+          </div>
+        )}
+      </div>
+      {/* Viz blocks: only show after typewriter is done */}
+      {isDone && parsed.vizBlocks.length > 0 && (
+        <div className="mt-2">
+          {parsed.vizBlocks.map((viz, i) => (
+            <VizRenderer key={i} viz={viz} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ─── Copy button for assistant messages ─── */
 function CopyMessageButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
@@ -282,10 +341,21 @@ function AssistantMessageViz({ content }: { content: string }) {
 
 /* ─── Main component ─── */
 export default function ChatMessages({ messages, isLoading, mcpCalls = [], streamingText }: ChatMessagesProps) {
+  // Find the last assistant message to apply typewriter effect
+  const lastAssistantIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") return i;
+    }
+    return -1;
+  })();
+
+  // Track which message IDs have already been fully displayed (no typewriter needed)
+  const [seenIds] = useState<Set<string>>(() => new Set());
+
   return (
     <div className="px-4 py-6">
       <div className="max-w-3xl mx-auto space-y-4">
-        {messages.map((msg) =>
+        {messages.map((msg, idx) =>
           msg.role === "user" ? (
             /* ── User bubble: right-aligned ── */
             <div key={msg.id} className="flex justify-end gap-2.5">
@@ -308,8 +378,15 @@ export default function ChatMessages({ messages, isLoading, mcpCalls = [], strea
                 U
               </div>
             </div>
+          ) : idx === lastAssistantIdx && !seenIds.has(msg.id) ? (
+            /* ── Last assistant message: typewriter effect ── */
+            <TypewriterAssistantBubble
+              key={msg.id}
+              msg={msg}
+              onComplete={() => seenIds.add(msg.id)}
+            />
           ) : (
-            /* ── Assistant bubble: left-aligned ── */
+            /* ── Older assistant messages: render immediately ── */
             <div key={msg.id} className="group flex justify-start gap-2.5 items-end">
               <div className="flex-shrink-0">
                 <SenegalFlag size={28} />
@@ -386,6 +463,81 @@ export default function ChatMessages({ messages, isLoading, mcpCalls = [], strea
                 </div>
               ) : null}
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Typewriter wrapper with flag avatar ─── */
+function TypewriterAssistantBubble({ msg, onComplete }: { msg: Message; onComplete: () => void }) {
+  const parsed = useMemo(() => parseMessageWithViz(msg.content), [msg.content]);
+  const { displayed, isDone } = useTypewriter(parsed.text, true, 6);
+
+  // Mark as seen when typewriter completes
+  if (isDone) {
+    onComplete();
+  }
+
+  return (
+    <div className="group flex justify-start gap-2.5 items-end">
+      <div className="flex-shrink-0">
+        <SenegalFlag size={28} />
+      </div>
+      <div className="min-w-0" style={{ maxWidth: "85%" }}>
+        {/* Text bubble */}
+        <div className="relative">
+          <div
+            className="px-4 py-3"
+            style={{
+              backgroundColor: "var(--surface)",
+              borderRadius: "18px 18px 18px 4px",
+              border: "0.5px solid var(--border)",
+            }}
+          >
+            {displayed && (
+              <div className="message-content prose prose-sm max-w-none" style={{ color: "var(--foreground)" }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {displayed}
+                </ReactMarkdown>
+                {/* Blinking cursor during typewriter */}
+                {!isDone && (
+                  <span
+                    className="typewriter-cursor"
+                    style={{
+                      display: "inline-block",
+                      width: "2px",
+                      height: "1em",
+                      background: "var(--accent)",
+                      marginLeft: "2px",
+                      verticalAlign: "text-bottom",
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            {!displayed && !isDone && (
+              <div className="flex items-center gap-2" style={{ fontSize: "13px", color: "var(--muted)" }}>
+                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              </div>
+            )}
+          </div>
+          {/* Copy button appears on hover, only after typewriter done */}
+          {isDone && (
+            <div className="absolute -bottom-2 right-2">
+              <CopyMessageButton content={msg.content} />
+            </div>
+          )}
+        </div>
+        {/* Viz blocks: only show after typewriter is done */}
+        {isDone && parsed.vizBlocks.length > 0 && (
+          <div className="mt-2">
+            {parsed.vizBlocks.map((viz, i) => (
+              <VizRenderer key={i} viz={viz} />
+            ))}
           </div>
         )}
       </div>

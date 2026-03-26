@@ -57,13 +57,13 @@ export default function ChatInput({ onSend, disabled, isLoading, onStop }: ChatI
       {isLoading ? (
         <button
           onClick={onStop}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer text-[13px] font-medium"
-          style={{ backgroundColor: "var(--accent)", color: "#ffffff" }}
+          className="p-2 rounded-lg cursor-pointer hover:opacity-80"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          title="Arrêter"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--muted)">
             <rect x="6" y="6" width="12" height="12" rx="2" />
           </svg>
-          Stop
         </button>
       ) : (
         <button

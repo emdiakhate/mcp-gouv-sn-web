@@ -143,6 +143,9 @@ body {
   content: "\25CB";
   animation: blink 1s step-end infinite;
 }
+.typewriter-cursor {
+  animation: blink 0.8s step-end infinite;
+}
 
 @keyframes mcp-spin {
   to { transform: rotate(360deg); }
