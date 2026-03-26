@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import SenegalFlag from "@/components/SenegalFlag";
-import ServiceCatalog from "@/components/ServiceCatalog";
+import ServiceCarousel from "@/components/ServiceCarousel";
 import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
 import ArtifactPanel from "@/components/ArtifactPanel";
 import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
+import { ANSD_SUGGESTED_QUESTIONS } from "@/data/ansdSectors";
 
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
@@ -331,6 +332,28 @@ function HomeInner() {
     }
   };
 
+  const handleServiceSelect = (serviceId: string) => {
+    if (serviceId === "ansd") {
+      // Create conversation and inject a service-info message
+      let convId = activeConvId;
+      if (!convId) {
+        convId = createConversation("ANSD — Donnees disponibles");
+      }
+      const serviceMsg: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: "",
+        type: "service-info",
+        serviceId: "ansd",
+      };
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === convId ? { ...c, messages: [...c.messages, serviceMsg] } : c
+        )
+      );
+    }
+  };
+
   const handleNewChat = () => {
     setActiveConvId(null);
   };
@@ -369,6 +392,7 @@ function HomeInner() {
           {/* Welcome screen or chat */}
           {isWelcomeScreen ? (
             <div className="flex-1 flex flex-col items-center justify-center px-4">
+              {/* Logo + Title */}
               <div className="mb-8 text-center">
                 <div className="flex justify-center mb-4">
                   <SenegalFlag size={56} />
@@ -377,23 +401,57 @@ function HomeInner() {
                   className="text-3xl font-semibold mb-2"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Bienvenue sur le portail mcp-gouv-sn
+                  Portail MCP Senegal
                 </h1>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Explorez les données ouvertes du Sénégal
+                  Explorez les donnees ouvertes du Senegal — 10 services gouvernementaux connectes
                 </p>
               </div>
 
+              {/* Chat input */}
               <div className="w-full max-w-2xl mb-6">
                 <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
               </div>
 
-              <ServiceCatalog onSelectPrompt={handleSend} />
+              {/* Service carousel */}
+              <div className="mb-6">
+                <ServiceCarousel onSelectService={handleServiceSelect} />
+              </div>
+
+              {/* Suggested questions */}
+              <div className="w-full max-w-2xl">
+                <div className="flex flex-wrap justify-center gap-2">
+                  {ANSD_SUGGESTED_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleSend(q)}
+                      className="px-3 py-1.5 rounded-full cursor-pointer"
+                      style={{
+                        fontSize: "12px",
+                        backgroundColor: "var(--chip-bg)",
+                        color: "var(--chip-text)",
+                        border: "1px solid var(--border)",
+                        transition: "border-color 0.15s, background-color 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "var(--accent)";
+                        e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border)";
+                        e.currentTarget.style.backgroundColor = "var(--chip-bg)";
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <>
               <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-                <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} />
+                <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} onSelectPrompt={handleSend} />
                 <div ref={messagesEndRef} />
               </div>
               <div className="px-4 pb-4 pt-2">

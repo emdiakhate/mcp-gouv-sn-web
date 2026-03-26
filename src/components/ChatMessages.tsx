@@ -7,6 +7,7 @@ import SenegalFlag from "./SenegalFlag";
 import VizRenderer from "./VizRenderer";
 import { parseMessageWithViz } from "@/utils/parseViz";
 import { useTypewriter } from "@/hooks/useTypewriter";
+import ANSDServiceInfo from "./ANSDServiceInfo";
 
 /* ─── Custom markdown components (Claude.ai text sizes) ─── */
 const markdownComponents = {
@@ -86,6 +87,8 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  type?: "service-info";
+  serviceId?: string;
 }
 
 export interface MCPCall {
@@ -101,6 +104,7 @@ interface ChatMessagesProps {
   isLoading?: boolean;
   mcpCalls?: MCPCall[];
   streamingText?: string;
+  onSelectPrompt?: (prompt: string) => void;
 }
 
 /* ─── MCP Thinking Panel (Claude.ai style) ─── */
@@ -340,7 +344,7 @@ function AssistantMessageViz({ content }: { content: string }) {
 }
 
 /* ─── Main component ─── */
-export default function ChatMessages({ messages, isLoading, mcpCalls = [], streamingText }: ChatMessagesProps) {
+export default function ChatMessages({ messages, isLoading, mcpCalls = [], streamingText, onSelectPrompt }: ChatMessagesProps) {
   // Find the last assistant message to apply typewriter effect
   const lastAssistantIdx = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -356,7 +360,25 @@ export default function ChatMessages({ messages, isLoading, mcpCalls = [], strea
     <div className="px-4 py-6">
       <div className="max-w-3xl mx-auto space-y-4">
         {messages.map((msg, idx) =>
-          msg.role === "user" ? (
+          msg.type === "service-info" ? (
+            /* ── Service info card (injected from carousel) ── */
+            <div key={msg.id} className="flex justify-start gap-2.5 items-end">
+              <div className="flex-shrink-0">
+                <SenegalFlag size={28} />
+              </div>
+              <div
+                className="min-w-0 px-4 py-4"
+                style={{
+                  maxWidth: "85%",
+                  backgroundColor: "var(--surface)",
+                  borderRadius: "18px 18px 18px 4px",
+                  border: "0.5px solid var(--border)",
+                }}
+              >
+                <ANSDServiceInfo onSelectPrompt={onSelectPrompt || (() => {})} />
+              </div>
+            </div>
+          ) : msg.role === "user" ? (
             /* ── User bubble: right-aligned ── */
             <div key={msg.id} className="flex justify-end gap-2.5">
               <div
