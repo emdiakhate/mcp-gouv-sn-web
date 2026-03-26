@@ -8,7 +8,6 @@ import ChatInput from "@/components/ChatInput";
 import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessages";
 import ArtifactPanel from "@/components/ArtifactPanel";
 import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
-import { ANSD_SUGGESTED_QUESTIONS } from "@/data/ansdSectors";
 
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
@@ -35,6 +34,31 @@ function loadSplitRatio(): number {
   }
   return 50;
 }
+/** Strip all non-standard XML/HTML tags from LLM output */
+function cleanLLMText(text: string): string {
+  return text
+    .replace(/<ansd_mcp>[\s\S]*?<\/ansd_mcp>/g, "")
+    .replace(/<ansd_\w+>[\s\S]*?<\/ansd_\w+>/g, "")
+    .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
+    .replace(/<invoke[\s\S]*?<\/antml:invoke>/g, "")
+    .replace(/<parameter[\s\S]*?<\/antml:parameter>/g, "")
+    .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
+    .replace(/<parameter[\s\S]*?<\/parameter>/g, "")
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+    .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
+    .replace(/<mcp[\s\S]*?>[\s\S]*?<\/mcp>/g, "")
+    .replace(/<mcp\s*\/>/g, "")
+    .replace(/<\/?mcp>/g, "")
+    .replace(/<[a-zA-Z_][\w-]*>[\s\S]*?<\/[a-zA-Z_][\w-]*>/g, (match) => {
+      const tag = match.match(/^<(\w+)/)?.[1] || "";
+      const safeTags = ["p", "br", "em", "strong", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "a", "code", "pre", "blockquote", "table", "thead", "tbody", "tr", "th", "td", "div", "span", "img", "viz"];
+      if (safeTags.includes(tag.toLowerCase())) return match;
+      return "";
+    })
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function saveSplitRatio(ratio: number) {
   localStorage.setItem(STORAGE_KEY, String(ratio));
 }
@@ -248,7 +272,7 @@ function HomeInner() {
               );
             } else if (event.type === "text") {
               fullText += event.content;
-              setStreamingText(fullText);
+              setStreamingText(cleanLLMText(fullText));
             } else if (event.type === "error") {
               fullText = event.content;
               setStreamingText(fullText);
@@ -260,18 +284,7 @@ function HomeInner() {
       }
 
       // Strip XML tool call artifacts
-      const cleanText = fullText
-        .replace(/<ansd_mcp>[\s\S]*?<\/ansd_mcp>/g, "")
-        .replace(/<ansd_\w+>[\s\S]*?<\/ansd_\w+>/g, "")
-        .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
-        .replace(/<invoke[\s\S]*?<\/antml:invoke>/g, "")
-        .replace(/<parameter[\s\S]*?<\/antml:parameter>/g, "")
-        .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
-        .replace(/<parameter[\s\S]*?<\/parameter>/g, "")
-        .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
-        .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+      const cleanText = cleanLLMText(fullText);
 
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -413,39 +426,9 @@ function HomeInner() {
                 <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
               </div>
 
-              {/* Service carousel */}
+              {/* Service grid (2 cols x 5 rows) */}
               <div className="mb-6">
                 <ServiceCarousel onSelectService={handleServiceSelect} />
-              </div>
-
-              {/* Suggested questions */}
-              <div className="w-full max-w-2xl">
-                <div className="flex flex-wrap justify-center gap-2">
-                  {ANSD_SUGGESTED_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => handleSend(q)}
-                      className="px-3 py-1.5 rounded-full cursor-pointer"
-                      style={{
-                        fontSize: "12px",
-                        backgroundColor: "var(--chip-bg)",
-                        color: "var(--chip-text)",
-                        border: "1px solid var(--border)",
-                        transition: "border-color 0.15s, background-color 0.15s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "var(--accent)";
-                        e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border)";
-                        e.currentTarget.style.backgroundColor = "var(--chip-bg)";
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           ) : (
