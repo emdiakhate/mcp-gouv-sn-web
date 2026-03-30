@@ -2,29 +2,29 @@
 
 const SECTORS = [
   {
-    name: "Sante",
+    name: "Santé",
     icon: "\uD83C\uDFE5",
-    prompt: "Quelles donnees sont disponibles sur la sante au Senegal ? Liste les themes et datasets.",
+    prompt: "Quelles données sont disponibles sur la santé au Sénégal ? Liste les thèmes et datasets.",
   },
   {
-    name: "Economie",
+    name: "Économie",
     icon: "\uD83D\uDCCA",
-    prompt: "Quelles donnees economiques sont disponibles pour le Senegal ? (PIB, commerce, finances)",
+    prompt: "Quelles données économiques sont disponibles pour le Sénégal ? (PIB, commerce, finances)",
   },
   {
     name: "Agriculture",
     icon: "\uD83C\uDF3E",
-    prompt: "Quelles donnees agricoles sont disponibles ? (production, elevage, peche)",
+    prompt: "Quelles données agricoles sont disponibles ? (production, élevage, pêche)",
   },
   {
-    name: "Education",
+    name: "Éducation",
     icon: "\uD83C\uDF93",
-    prompt: "Quelles donnees sur l'education au Senegal sont disponibles ? (scolarisation, alphabetisation)",
+    prompt: "Quelles données sur l'éducation au Sénégal sont disponibles ? (scolarisation, alphabétisation)",
   },
   {
-    name: "Demographie",
+    name: "Démographie",
     icon: "\uD83D\uDC65",
-    prompt: "Quelles donnees demographiques sont disponibles ? (population, menages, migration)",
+    prompt: "Quelles données démographiques sont disponibles ? (population, ménages, migration)",
   },
 ];
 

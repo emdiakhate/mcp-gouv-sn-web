@@ -1,14 +1,46 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTheme } from "./ThemeProvider";
 
+interface ConversationItem {
+  id: string;
+  title: string;
+  createdAt?: number;
+}
+
 interface SidebarProps {
-  conversations: { id: string; title: string }[];
+  conversations: ConversationItem[];
   activeConversation: string | null;
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   collapsed: boolean;
   onToggle: () => void;
+}
+
+function groupConversationsByDate(conversations: ConversationItem[]) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekAgo = today - 7 * 24 * 60 * 60 * 1000;
+
+  const groups: { title: string; items: ConversationItem[] }[] = [
+    { title: "Aujourd'hui", items: [] },
+    { title: "Cette semaine", items: [] },
+    { title: "Plus tôt", items: [] },
+  ];
+
+  for (const conv of conversations) {
+    const ts = conv.createdAt || parseInt(conv.id) || 0;
+    if (ts >= today) {
+      groups[0].items.push(conv);
+    } else if (ts >= weekAgo) {
+      groups[1].items.push(conv);
+    } else {
+      groups[2].items.push(conv);
+    }
+  }
+
+  return groups.filter((g) => g.items.length > 0);
 }
 
 export default function Sidebar({
@@ -20,6 +52,7 @@ export default function Sidebar({
   onToggle,
 }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
+  const groups = useMemo(() => groupConversationsByDate(conversations), [conversations]);
 
   return (
     <aside
@@ -68,33 +101,60 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Conversation list */}
+      {/* Conversation list — grouped by date */}
       <div className="flex-1 overflow-y-auto px-2">
-        {conversations.map((conv) => (
-          <button
-            key={conv.id}
-            onClick={() => onSelectConversation(conv.id)}
-            className="w-full text-left rounded-lg text-sm mb-0.5 cursor-pointer truncate"
-            style={{
-              backgroundColor:
-                activeConversation === conv.id
-                  ? "var(--surface-hover)"
-                  : "transparent",
-              color: "var(--foreground)",
-              padding: collapsed ? "8px 0" : "8px 12px",
-              textAlign: collapsed ? "center" : "left",
-            }}
-            title={conv.title}
-          >
-            {collapsed ? (
+        {collapsed ? (
+          conversations.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => onSelectConversation(conv.id)}
+              className="w-full rounded-lg mb-0.5 cursor-pointer"
+              style={{
+                backgroundColor: activeConversation === conv.id ? "var(--surface-hover)" : "transparent",
+                padding: "8px 0",
+                textAlign: "center",
+              }}
+              title={conv.title}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
-            ) : (
-              conv.title
-            )}
-          </button>
-        ))}
+            </button>
+          ))
+        ) : (
+          groups.map((group) => (
+            <div key={group.title} style={{ marginBottom: "8px" }}>
+              <p
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: "var(--muted)",
+                  padding: "4px 12px",
+                  margin: "0 0 2px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {group.title}
+              </p>
+              {group.items.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => onSelectConversation(conv.id)}
+                  className="w-full text-left rounded-lg text-sm mb-0.5 cursor-pointer truncate"
+                  style={{
+                    backgroundColor: activeConversation === conv.id ? "var(--surface-hover)" : "transparent",
+                    color: "var(--foreground)",
+                    padding: "8px 12px",
+                  }}
+                  title={conv.title}
+                >
+                  {conv.title}
+                </button>
+              ))}
+            </div>
+          ))
+        )}
       </div>
 
       {/* Bottom: theme toggle */}

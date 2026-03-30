@@ -15,10 +15,10 @@ export default function ANSDServiceInfo({ onSelectPrompt }: ANSDServiceInfoProps
         <span style={{ fontSize: "28px" }}>📊</span>
         <div>
           <div className="font-semibold" style={{ fontSize: "16px", color: "var(--foreground)" }}>
-            ANSD — Donnees disponibles
+            ANSD — Données disponibles
           </div>
           <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-            Agence Nationale de la Statistique et de la Demographie
+            Agence Nationale de la Statistique et de la Démographie
           </div>
         </div>
         <a
@@ -54,7 +54,7 @@ export default function ANSDServiceInfo({ onSelectPrompt }: ANSDServiceInfoProps
           className="font-semibold mb-2"
           style={{ fontSize: "12px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}
         >
-          Questions suggerees
+          Questions suggérées
         </div>
         <div className="flex flex-wrap gap-2">
           {ANSD_SUGGESTED_QUESTIONS.map((q) => (

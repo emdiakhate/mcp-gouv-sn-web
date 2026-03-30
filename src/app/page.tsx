@@ -9,6 +9,13 @@ import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessa
 import ArtifactPanel from "@/components/ArtifactPanel";
 import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
 
+const EXAMPLE_QUESTIONS = [
+  { icon: "🏥", text: "Combien de médecins par région au Sénégal en 2022 ?" },
+  { icon: "📈", text: "Quel est le taux de scolarisation des filles au Sénégal ?" },
+  { icon: "💉", text: "Combien de cas de paludisme à Kolda en 2021 ?" },
+  { icon: "📊", text: "Tableau de bord santé : budget, médecins, mortalité infantile — identifier les 3 régions les plus vulnérables" },
+];
+
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
   search_datasets: "Search datasets",
@@ -21,6 +28,7 @@ interface Conversation {
   id: string;
   title: string;
   messages: Message[];
+  createdAt: number;
 }
 
 /* ─── Persist split ratio in localStorage ─── */
@@ -169,7 +177,7 @@ function HomeInner() {
       firstMessage.length > 35
         ? firstMessage.substring(0, 35) + "..."
         : firstMessage;
-    const newConv: Conversation = { id, title, messages: [] };
+    const newConv: Conversation = { id, title, messages: [], createdAt: Date.now() };
     setConversations((prev) => [newConv, ...prev]);
     setActiveConvId(id);
     return id;
@@ -350,7 +358,7 @@ function HomeInner() {
       // Create conversation and inject a service-info message
       let convId = activeConvId;
       if (!convId) {
-        convId = createConversation("ANSD — Donnees disponibles");
+        convId = createConversation("ANSD — Données disponibles");
       }
       const serviceMsg: Message = {
         id: Date.now().toString(),
@@ -388,68 +396,133 @@ function HomeInner() {
       <div ref={containerRef} className="flex-1 flex min-w-0">
         {/* Chat column */}
         <main
-          className="flex flex-col min-w-0 h-full"
+          className="flex flex-col min-w-0 h-full relative"
           style={{ width: artifactOpen ? `${splitRatio}%` : "100%", flexShrink: 0 }}
         >
           {/* Top bar */}
           <header
-            className="flex items-center justify-center px-4 py-3 border-b"
+            className="flex items-center justify-between px-4 py-3 border-b"
             style={{ borderColor: "var(--border)" }}
           >
+            <div style={{ width: 60 }} />
             <div className="flex items-center gap-2">
               <SenegalFlag size={20} />
               <span className="text-sm font-medium">Portail MCP Sénégal</span>
             </div>
+            <span
+              style={{
+                background: "#FAEEDA",
+                color: "#854F0B",
+                fontSize: "10px",
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: "20px",
+                border: "0.5px solid #EF9F27",
+                letterSpacing: "0.06em",
+              }}
+            >
+              BÊTA
+            </span>
           </header>
 
           {/* Welcome screen or chat */}
           {isWelcomeScreen ? (
-            <div className="flex-1 flex flex-col items-center justify-center px-4">
+            <div className="flex-1 flex flex-col items-center justify-center px-4 pb-10" style={{ gap: "20px" }}>
               {/* Logo + Title */}
-              <div className="mb-8 text-center">
-                <div className="flex justify-center mb-4">
-                  <SenegalFlag size={56} />
+              <div className="text-center">
+                <div className="flex justify-center mb-3">
+                  <SenegalFlag size={44} />
                 </div>
                 <h1
-                  className="text-3xl font-semibold mb-2"
+                  className="text-2xl font-semibold mb-1"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Portail MCP Senegal
+                  Portail MCP Sénégal
                 </h1>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Explorez les donnees ouvertes du Senegal — 10 services gouvernementaux connectes
+                  Explorez les données ouvertes du Sénégal — 10 services gouvernementaux connectés
                 </p>
               </div>
 
               {/* Chat input */}
-              <div className="w-full max-w-2xl mb-6">
+              <div className="w-full max-w-2xl">
                 <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
               </div>
 
-              {/* Service grid (2 cols x 5 rows) */}
-              <div className="mb-6">
-                <ServiceCarousel onSelectService={handleServiceSelect} />
+              {/* Example questions */}
+              <div className="flex flex-wrap justify-center gap-2" style={{ maxWidth: "700px" }}>
+                {EXAMPLE_QUESTIONS.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(q.text)}
+                    className="flex items-center gap-1.5 cursor-pointer text-left"
+                    style={{
+                      padding: "8px 14px",
+                      background: "var(--surface)",
+                      border: "0.5px solid var(--border)",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      color: "var(--muted)",
+                      transition: "border-color 0.15s, color 0.15s",
+                      maxWidth: "320px",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.color = "var(--foreground)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--muted)";
+                    }}
+                  >
+                    <span style={{ fontSize: "14px", flexShrink: 0 }}>{q.icon}</span>
+                    <span style={{ lineHeight: 1.4 }}>{q.text}</span>
+                  </button>
+                ))}
               </div>
+
+              {/* Service grid */}
+              <ServiceCarousel onSelectService={handleServiceSelect} />
             </div>
           ) : (
             <>
-              <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+              <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto pb-10">
                 <ChatMessages messages={messages} isLoading={isLoading} mcpCalls={mcpCalls} streamingText={streamingText} onSelectPrompt={handleSend} />
                 <div ref={messagesEndRef} />
               </div>
-              <div className="px-4 pb-4 pt-2">
+              <div className="px-4 pb-10 pt-2">
                 <div className="max-w-3xl mx-auto">
                   <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-                  <p
-                    className="text-xs text-center mt-1"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    &copy; YNNOVIA
-                  </p>
                 </div>
               </div>
             </>
           )}
+
+          {/* Footer */}
+          <footer
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "6px 16px",
+              background: "var(--background)",
+              borderTop: "0.5px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "16px",
+              fontSize: "11px",
+              color: "var(--muted)",
+              zIndex: 50,
+            }}
+          >
+            <span>🔒 Sources officielles</span>
+            <span className="footer-detail" style={{ opacity: 0.4 }}>·</span>
+            <span className="footer-detail">Données ANSD · CC BY 4.0</span>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <span><strong style={{ color: "var(--foreground)" }}>YNNOVIA</strong></span>
+          </footer>
         </main>
 
         {/* Resize handle + Artifact panel */}
