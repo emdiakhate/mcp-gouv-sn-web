@@ -432,14 +432,11 @@ function HomeInner() {
                   <SenegalFlag size={44} />
                 </div>
                 <h1
-                  className="text-2xl font-semibold mb-1"
+                  className="text-2xl font-semibold"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Portail des données publiques du Sénégal
+                  Bienvenue sur <span style={{ color: "var(--accent)" }}>data-gouv-sn</span>
                 </h1>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
-                  Explorez les données ouvertes du Sénégal — 10 services gouvernementaux connectés
-                </p>
               </div>
 
               {/* Chat input */}
@@ -484,8 +481,6 @@ function HomeInner() {
             }}
           >
             <span>🔒 Sources officielles</span>
-            <span className="footer-detail" style={{ opacity: 0.4 }}>·</span>
-            <span className="footer-detail">Données ANSD · CC BY 4.0</span>
             <span style={{ opacity: 0.4 }}>·</span>
             <span><strong style={{ color: "var(--foreground)" }}>YNNOVIA</strong></span>
           </footer>
