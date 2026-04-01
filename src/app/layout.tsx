@@ -3,7 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Portail MCP Gouv Sénégal",
+  title: "Portail des données publiques du Sénégal",
   description:
     "Accédez aux données ouvertes du Sénégal via le protocole MCP - ANSD",
 };

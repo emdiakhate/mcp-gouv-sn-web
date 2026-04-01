@@ -9,13 +9,6 @@ import ChatMessages, { type Message, type MCPCall } from "@/components/ChatMessa
 import ArtifactPanel from "@/components/ArtifactPanel";
 import { ArtifactProvider, useArtifact } from "@/contexts/ArtifactContext";
 
-const EXAMPLE_QUESTIONS = [
-  { icon: "🏥", text: "Combien de médecins par région au Sénégal en 2022 ?" },
-  { icon: "📈", text: "Quel est le taux de scolarisation des filles au Sénégal ?" },
-  { icon: "💉", text: "Combien de cas de paludisme à Kolda en 2021 ?" },
-  { icon: "📊", text: "Tableau de bord santé : budget, médecins, mortalité infantile — identifier les 3 régions les plus vulnérables" },
-];
-
 const TOOL_LABELS: Record<string, string> = {
   list_themes: "List themes",
   search_datasets: "Search datasets",
@@ -405,9 +398,14 @@ function HomeInner() {
             style={{ borderColor: "var(--border)" }}
           >
             <div style={{ width: 60 }} />
-            <div className="flex items-center gap-2">
-              <SenegalFlag size={20} />
-              <span className="text-sm font-medium">Portail MCP Sénégal</span>
+            <div className="flex flex-col items-center">
+              <div className="flex items-center gap-2">
+                <SenegalFlag size={20} />
+                <span className="text-sm font-medium">Portail des données publiques du Sénégal</span>
+              </div>
+              <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                Interrogez les données officielles du Sénégal en langage naturel
+              </span>
             </div>
             <span
               style={{
@@ -437,7 +435,7 @@ function HomeInner() {
                   className="text-2xl font-semibold mb-1"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Portail MCP Sénégal
+                  Portail des données publiques du Sénégal
                 </h1>
                 <p className="text-sm" style={{ color: "var(--muted)" }}>
                   Explorez les données ouvertes du Sénégal — 10 services gouvernementaux connectés
@@ -447,38 +445,6 @@ function HomeInner() {
               {/* Chat input */}
               <div className="w-full max-w-2xl">
                 <ChatInput onSend={handleSend} disabled={isLoading} isLoading={isLoading} onStop={handleStop} />
-              </div>
-
-              {/* Example questions */}
-              <div className="flex flex-wrap justify-center gap-2" style={{ maxWidth: "700px" }}>
-                {EXAMPLE_QUESTIONS.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSend(q.text)}
-                    className="flex items-center gap-1.5 cursor-pointer text-left"
-                    style={{
-                      padding: "8px 14px",
-                      background: "var(--surface)",
-                      border: "0.5px solid var(--border)",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      color: "var(--muted)",
-                      transition: "border-color 0.15s, color 0.15s",
-                      maxWidth: "320px",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--foreground)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--muted)";
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", flexShrink: 0 }}>{q.icon}</span>
-                    <span style={{ lineHeight: 1.4 }}>{q.text}</span>
-                  </button>
-                ))}
               </div>
 
               {/* Service grid */}
