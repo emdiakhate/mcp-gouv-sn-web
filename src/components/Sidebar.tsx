@@ -9,16 +9,6 @@ interface ConversationItem {
   createdAt?: number;
 }
 
-const now = Date.now();
-const MOCK_CONVERSATIONS: ConversationItem[] = [
-  { id: "mock-1", title: "Population par région 2023", createdAt: now - 3600000 },
-  { id: "mock-2", title: "Évolution du PIB sur 10 ans", createdAt: now - 3600000 * 3 },
-  { id: "mock-3", title: "Taux de scolarisation des filles", createdAt: now - 86400000 * 2 },
-  { id: "mock-4", title: "Mortalité infantile par région", createdAt: now - 86400000 * 5 },
-  { id: "mock-5", title: "Commerce extérieur Sénégal", createdAt: now - 86400000 * 10 },
-  { id: "mock-6", title: "Données agriculture et élevage", createdAt: now - 86400000 * 15 },
-];
-
 interface SidebarProps {
   conversations: ConversationItem[];
   activeConversation: string | null;
@@ -62,11 +52,7 @@ export default function Sidebar({
   onToggle,
 }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
-  const allConversations = useMemo(
-    () => [...conversations, ...MOCK_CONVERSATIONS.filter((m) => !conversations.some((c) => c.id === m.id))],
-    [conversations]
-  );
-  const groups = useMemo(() => groupConversationsByDate(allConversations), [allConversations]);
+  const groups = useMemo(() => groupConversationsByDate(conversations), [conversations]);
 
   return (
     <aside
@@ -118,7 +104,7 @@ export default function Sidebar({
       {/* Conversation list — grouped by date */}
       <div className="flex-1 overflow-y-auto px-2">
         {collapsed ? (
-          allConversations.map((conv) => (
+          conversations.map((conv) => (
             <button
               key={conv.id}
               onClick={() => onSelectConversation(conv.id)}
